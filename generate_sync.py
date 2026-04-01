@@ -190,11 +190,12 @@ if ws_new.max_row >= 4:
     ws_new.delete_rows(4, ws_new.max_row - 3)
 
 for i, u in enumerate(unmatched_items, 1):
-    harga_jual = int(u['harga_modal'] * 1.5) if u['harga_modal'] else 0
+    harga_jual = int(u['harga_modal']) if u['harga_modal'] else 0
+    harga_modal_luna = 0 # Request Finance
     nama_baru = format_nama_luna(u['nama'], warehouse_prefix)
     row = [
         i, u['id'], nama_baru, "Y", "N", 
-        harga_jual, u['harga_modal'], "Y", u['qty'], 1, 
+        harga_jual, harga_modal_luna, "Y", u['qty'], 1, 
         "General", u['satuan'] or "Pcs"
     ] + ([None] * 8)
     ws_new.append(row)
