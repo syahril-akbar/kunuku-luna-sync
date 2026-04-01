@@ -1,0 +1,22 @@
+# Abaikan semua file Excel dan CSV karena berisi harga modal, harga jual, dan rahasia stok Kunuku Baby Food
+*.xlsx
+*.xls
+*.csv
+
+# JANGAN ABAIKAN template kosong LUNA, karena script butuh ini buat mencetak file baru
+!product-import-template.xlsx
+!warehouse-transfer-import-template.xlsx
+
+# Abaikan file TXT sisa analisis sementara
+*.txt
+
+# Abaikan file sampah / cache sistem Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
