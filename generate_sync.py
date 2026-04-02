@@ -4,6 +4,14 @@ import re
 import os
 import sys
 
+def safe_int(value):
+    if value is None:
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    digits = re.sub(r'[^\d]', '', str(value))
+    return int(digits) if digits else 0
+
 print("Memulai proses sinkronisasi dan pencocokan data...")
 
 sj_filename = input("Masukkan nama/path file Surat Jalan (.xlsx) \n(contoh: SURAT JALAN BARU.xlsx): ").strip(" '\"")
@@ -75,14 +83,6 @@ for r in range(2, ws_sj.max_row + 1):
                 'satuan': sat,
                 'harga': harga
             }
-
-def safe_int(value):
-    if value is None:
-        return 0
-    if isinstance(value, (int, float)):
-        return int(value)
-    digits = re.sub(r'[^\d]', '', str(value))
-    return int(digits) if digits else 0
 
 def parse_age_vol(text):
     text = text.upper()
