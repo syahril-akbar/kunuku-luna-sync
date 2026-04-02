@@ -19,6 +19,13 @@ if not warehouse_prefix:
     warehouse_prefix = "PRT"
 print(f"Menggunakan awalan untuk produk baru: {warehouse_prefix}")
 
+base_name = os.path.splitext(os.path.basename(sj_filename))[0]
+suffix_text = re.sub(r'(?i)SURAT JALAN', '', base_name)
+suffix_text = re.sub(r'(?i)FIX', '', suffix_text)
+file_suffix = re.sub(r'[^A-Za-z0-9]+', '_', suffix_text).strip('_')
+if not file_suffix:
+    file_suffix = "OUTPUT"
+
 wb_produk = openpyxl.load_workbook('Produk.xlsx', data_only=True)
 ws_produk = wb_produk['Sheet1']
 
@@ -51,21 +58,31 @@ sj_data = {}
 for r in range(2, ws_sj.max_row + 1):
     id_p = ws_sj.cell(r, 1).value
     nama = str(ws_sj.cell(r, 2).value or "").strip()
-    qty = ws_sj.cell(r, 5).value or 0
+    qty_raw = ws_sj.cell(r, 5).value
+    qty = safe_int(qty_raw)
     sat = str(ws_sj.cell(r, 6).value or "").strip()
-    harga = ws_sj.cell(r, 9).value or 0
+    harga_raw = ws_sj.cell(r, 9).value
+    harga = safe_int(harga_raw)
     
     if id_p and nama and nama.lower() != 'none':
         id_str = str(id_p).strip()
         if id_str in sj_data:
-            sj_data[id_str]['qty'] += int(qty)
+            sj_data[id_str]['qty'] += qty
         else:
             sj_data[id_str] = {
                 'nama': nama,
-                'qty': int(qty),
+                'qty': qty,
                 'satuan': sat,
                 'harga': harga
             }
+
+def safe_int(value):
+    if value is None:
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    digits = re.sub(r'[^\d]', '', str(value))
+    return int(digits) if digits else 0
 
 def parse_age_vol(text):
     text = text.upper()
@@ -172,7 +189,7 @@ for m in mapping_review:
         m['harga_modal_sj'],
         status
     ])
-wb_review.save("Hasil_Mapping_Review.xlsx")
+wb_review.save(f"Hasil_Mapping_Review_{file_suffix}.xlsx")
 
 wb_tf = openpyxl.load_workbook('warehouse-transfer-import-template.xlsx')
 ws_tf = wb_tf.active
@@ -182,7 +199,7 @@ if ws_tf.max_row >= 4:
 for i, m in enumerate(matched_items, 1):
     row = [i, m['sku'], m['nama'], m['satuan'], m['qty']] + ([None] * 20)
     ws_tf.append(row)
-wb_tf.save("Siap_Warehouse_Transfer.xlsx")
+wb_tf.save(f"Siap_Warehouse_Transfer_{file_suffix}.xlsx")
 
 wb_new = openpyxl.load_workbook('product-import-template.xlsx')
 ws_new = wb_new.active
@@ -190,7 +207,7 @@ if ws_new.max_row >= 4:
     ws_new.delete_rows(4, ws_new.max_row - 3)
 
 for i, u in enumerate(unmatched_items, 1):
-    harga_jual = int(u['harga_modal']) if u['harga_modal'] else 0
+    harga_jual = u['harga_modal']
     harga_modal_luna = 0 # Request Finance
     nama_baru = format_nama_luna(u['nama'], warehouse_prefix)
     row = [
@@ -199,6 +216,38 @@ for i, u in enumerate(unmatched_items, 1):
         "General", u['satuan'] or "Pcs"
     ] + ([None] * 8)
     ws_new.append(row)
-wb_new.save("Siap_Product_Baru.xlsx")
+wb_new.save(f"Siap_Product_Baru_{file_suffix}.xlsx")
 
-print("File berhasil di-generate!")
+# ---- FITUR LAPORAN OTOMATIS ACHIR ----
+total_qty_transfer = sum(m['qty'] for m in matched_items)
+total_qty_baru = sum(u['qty'] for u in unmatched_items)
+total_item_transfer = len(matched_items)
+total_item_baru = len(unmatched_items)
+
+laporan_text = f"""=========================================
+LAPORAN SINKRONISASI INVENTORI LUNA POS
+=========================================
+File Sumber     : {os.path.basename(sj_filename)}
+Cabang Target   : {warehouse_prefix}
+
+-- RINGKASAN MUTASI (STOCK IN) --
+Total SKU Terdikses (Barang Lama)  : {total_item_transfer} Varian
+Total Quantitiy Masuk              : {total_qty_transfer} Pcs
+
+-- RINGKASAN REGISTRASI BARANG BARU --
+Total SKU Baru (Barang Baru)       : {total_item_baru} Varian
+Total Quantitiy Masuk              : {total_qty_baru} Pcs
+
+-- DAFTAR FILE HASIL --
+1. Hasil_Mapping_Review_{file_suffix}.xlsx (WAJIB CEK)
+2. Siap_Warehouse_Transfer_{file_suffix}.xlsx
+3. Siap_Product_Baru_{file_suffix}.xlsx
+
+========================================="""
+
+laporan_filename = f"Laporan_Mutasi_{file_suffix}.txt"
+with open(laporan_filename, "w", encoding="utf-8") as f:
+    f.write(laporan_text)
+
+print(f"\n{laporan_text}\n")
+print(f"File berhasil di-generate! Laporan juga telah disimpan di {laporan_filename}")
