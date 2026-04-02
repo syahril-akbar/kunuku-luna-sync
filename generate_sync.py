@@ -63,6 +63,7 @@ except Exception as e:
     sys.exit(1)
 
 sj_data = {}
+baris_gagal = 0
 for r in range(2, ws_sj.max_row + 1):
     id_p = ws_sj.cell(r, 1).value
     nama = str(ws_sj.cell(r, 2).value or "").strip()
@@ -83,6 +84,9 @@ for r in range(2, ws_sj.max_row + 1):
                 'satuan': sat,
                 'harga': harga
             }
+    else:
+        if nama and nama.lower() != 'none':
+            baris_gagal += 1
 
 def parse_age_vol(text):
     text = text.upper()
@@ -218,11 +222,17 @@ for i, u in enumerate(unmatched_items, 1):
     ws_new.append(row)
 wb_new.save(f"Siap_Product_Baru_{file_suffix}.xlsx")
 
-# ---- FITUR LAPORAN OTOMATIS ACHIR ----
+# ---- FITUR LAPORAN OTOMATIS AKHIR ----
 total_qty_transfer = sum(m['qty'] for m in matched_items)
 total_qty_baru = sum(u['qty'] for u in unmatched_items)
 total_item_transfer = len(matched_items)
 total_item_baru = len(unmatched_items)
+
+total_rp_transfer = sum(safe_int(m['harga_modal_sj']) * safe_int(m['qty_sj']) for m in mapping_review if m['sku_luna_prediksi'])
+total_rp_baru = sum(safe_int(m['harga_modal_sj']) * safe_int(m['qty_sj']) for m in mapping_review if not m['sku_luna_prediksi'])
+
+rp_transfer_str = f"Rp {total_rp_transfer:,}".replace(',', '.')
+rp_baru_str = f"Rp {total_rp_baru:,}".replace(',', '.')
 
 laporan_text = f"""=========================================
 LAPORAN SINKRONISASI INVENTORI LUNA POS
@@ -230,13 +240,18 @@ LAPORAN SINKRONISASI INVENTORI LUNA POS
 File Sumber     : {os.path.basename(sj_filename)}
 Cabang Target   : {warehouse_prefix}
 
--- RINGKASAN MUTASI (STOCK IN) --
-Total SKU Terdikses (Barang Lama)  : {total_item_transfer} Varian
+-- STATUS PEMBACAAN DATA --
+Peringatan      : Terdapat {baris_gagal} baris barang dilewati (ID Kosong)
+
+-- RINGKASAN MUTASI (STOCK IN LAMA) --
+Total SKU Terdikses                : {total_item_transfer} Varian
 Total Quantitiy Masuk              : {total_qty_transfer} Pcs
+Total Nilai Barang (Harga Satuan)  : {rp_transfer_str}
 
 -- RINGKASAN REGISTRASI BARANG BARU --
-Total SKU Baru (Barang Baru)       : {total_item_baru} Varian
+Total SKU Baru Terdikses           : {total_item_baru} Varian
 Total Quantitiy Masuk              : {total_qty_baru} Pcs
+Total Nilai Barang (Harga Satuan)  : {rp_baru_str}
 
 -- DAFTAR FILE HASIL --
 1. Hasil_Mapping_Review_{file_suffix}.xlsx (WAJIB CEK)

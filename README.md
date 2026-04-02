@@ -13,6 +13,7 @@ Sistem otomasi ini sangat bergantung pada berkas rujukan (sumber data). Apabila 
 **STANDAR OPERASIONAL PROSEDUR (SOP) PERSIAPAN:**
 1. **Pembaruan Basis Data:** Anda **DIWAJIBKAN** mengakses *dashboard* LUNA POS setiap kali sebelum menggunakan program ini. Lakukan *Export Data Produk* terbaru dan simpan/timpa berkas tersebut di folder ini dengan nama absolut: `Produk.xlsx`.
 2. **Penamaan Surat Jalan:** Pastikan berkas Surat Jalan dari gudang berformat Excel (`.xlsx`) dan disimpan di direktori yang sama dengan program.
+3. **Kewajiban ID Kolom:** **SANGAT PENTING**. Baris produk di Surat Jalan yang tidak memiliki **ID Barang** di kolom pertamanya akan **SECARA OTOMATIS DIABAIKAN (Dilewati/Dihapus dari Pemrosesan)**. Selalu cek hasil akhir *Total Quantitiy* untuk mencegah gagal mutasi akibat admin lupa mencantumkan ID Barang.
 
 ---
 
@@ -33,31 +34,30 @@ Langkah-langkah untuk menjalankan proses sinkronisasi:
 
 ## 📂 Penjelasan Berkas Output (Hasil Pemrosesan)
 
-Setelah eksekusi berhasil, sistem akan menghasilkan **3 Berkas Baru**. Jangan langsung melakukan impor ke dalam LUNA POS tanpa memahami fungsi dan melakukan validasi:
+Sistem menggunakan penamaan berkas otomatis (Berdasarkan cabang & nama Surat Jalan). Misalnya jika input Anda adalah `SURAT JALAN FIX PERINTIS_30_MARET.xlsx`, maka sistem akan menghasilkan deretan *file* berikut:
 
-### 1. `Hasil_Mapping_Review.xlsx` (Tahap Validasi Utama)
-* **Fungsi:** Papan kontrol validasi visual. Lembar kerja ini menunjukkan hasil analisis kecocokan (pencocokan nama Surat Jalan dengan nama baku SKU LUNA).
-* **Tindakan Wajib:** Buka berkas ini dan periksa kolom "Prediksi Nama LUNA". Pastikan kecocokan tidak keliru. Apabila statusnya tercatat sebagai **BARU (Tidak ada di LUNA)**, berarti SKU tersebut tidak ditemukan persamaannya dan akan dicetak sebagai produk baru.
+### 1. `Laporan_Mutasi_PERINTIS_30_MARET.txt` (Auto-Report)
+* **Fungsi:** Laporan rekapitulasi data. Berisi ringkasan matang (Total Pcs Transfer, Total Pcs Baru, Nilai Rupiah Mutasi, dan Baris Error).
+* **Tindakan Wajib:** Teks di *file* ini siap disalin (*copy-paste*) ke grup WhatsApp *Daily Stock In* Anda untuk diperiksa oleh manajemen / divisi *Finance*.
 
-### 2. `Siap_Product_Baru.xlsx` (Pendaftaran SKU Baru)
-* **Fungsi:** Template data untuk mendaftarkan Master Product baru (barang dari Surat Jalan yang dipastikan belum pernah di-input ke sistem LUNA rujukan).
-* **Input Manual Wajib:**
-  1. **Kategori:** Secara *default*, sistem mengisinya dengan label `"General"`. Ubah manual nama kategori ini sesuai standar manajemen kategori di LUNA POS Anda.
-  2. **Harga Jual:** Sistem akan secara otomatis menetapkan mark-up bawaan sebesar **1.5x (naik 50%)** dari Harga Modal. **ANDA WAJIB** mengubah kolom ini secara manual sesuai dengan standar harga ritel yang berlaku.
-  3. **Batas Minimum Stok:** Secara bawaan diisi "1".
-* **Impor LUNA:** Unggah berkas yang sudah direvisi ini ke menu **Product Import / Master Data** di LUNA.
+### 2. `Hasil_Mapping_Review_PERINTIS_30_MARET.xlsx` (Tahap Validasi Utama)
+* **Fungsi:** Papan kontrol validasi visual untuk pencocokan nama Surat Jalan dengan nama baku SKU LUNA.
+* **Tindakan Wajib:** Buka berkas ini dan pastikan tidak terdeteksi status **BARU (Tidak ada di LUNA)** pada produk turunan lama. Bila terdeteksi, perhatikan apakah ini emang produk baru rilis dari pabrik atau murni karena ketikan admin warehouse terlalu parah rusaknya.
 
-### 3. `Siap_Warehouse_Transfer.xlsx` (Registrasi Pemindahan/Penambahan Stok)
-* **Fungsi:** Template untuk melakukan *Mutasi Stok* atau mutasi barang yang sudah terdaftar lama di dalam sistem. Sistem secara cerdas akan menjumlahkan (akumulasi) stok apabila gudang mengetikkan suatu produk lebih dari satu baris secara terpisah.
-* **Tindakan Wajib:** Verifikasi total angka mutasi sebelum mengimpor.
-* **Impor LUNA:** Unggah berkas ini secara utuh (tidak perlu diedit) ke menu **Warehouse Transfer / Mutasi Stok** di LUNA.
+### 3. `Siap_Product_Baru_PERINTIS_30_MARET.xlsx` (Pendaftaran SKU Baru)
+* **Fungsi:** Template pendaftaran Master Product Baru.
+* **Kebijakan Harga (Req Finance):** Harga Modal dipatok mati menjadi `0`. Harga Jual mencaplok nilai mentah dari *Surat Jalan* (Harga yang diberikan Gudang = Harga Retail).
+* **Input Manual:** Silakan periksa manual label kategori `"General"` kalau Anda memakai nama Kategori spesifik di LUNA POS Anda.
+* **Impor LUNA:** Unggah ke menu **Product Import / Master Data** di LUNA.
+
+### 4. `Siap_Warehouse_Transfer_PERINTIS_30_MARET.xlsx` (Mutasi Stok Lama)
+* **Fungsi:** Template untuk menambahkan persediaan (Stok In) ke SKU yang sudah ada. Skrip secara cerdas akan mengakumulasi jumlah (*Quantity*) jika gudang mengetikkan jenis produk yang sama dua kali secara terpisah.
+* **Tindakan Wajib:** Harap cek total nilai transfer dengan *Laporan_Mutasi* *TXT*.
+* **Impor LUNA:** Unggah ke menu **Warehouse Transfer / Mutasi Stok** di LUNA.
 
 ---
 
-## 🛑 Limitasi & Mitigasi Kesalahan
-Sistem dibekali algoritma validasi ketat. Sistem mewajibkan indikator **Umur (11+, 9+, 6+)** dan **Takaran/Volume (100ML, 200ML, dll)** sama persis (`Exact Match Attribute`) meskipun rentetan teks bervariasi. 
-
-**Catatan Khusus:**
-Apabila admin gudang mengetikkan nama produk baru dengan teledor (lupa melampirkan keterangan umur atau satuan ukuran ML), program otomasi ini akan **memisahkan produk tersebut ke dalam berkas `Siap_Product_Baru.xlsx`** (sebagai produk baru yang tidak dikenali) untuk mencegah risiko pencampuran stok inventori yang fatal pada ukuran varian yang dilarang. 
-
-*Disiplin pencatatan manual senantiasa menjadi kunci kelancaran otomasi sistem ujung-ke-ujung.*
+## 🛑 Limitasi & Proteksi Kesalahan
+Sistem dibekali pelindung otomatis tingkat tinggi:
+* **Anti-Error Typo Huruf:** Ketikan rusak *"15 Pcs"* di kolom jumlah, atau *"Rp 15.000"* di kolom harga akan disapubersih secara aman menjadi angka utuh (`15` dan `15000`) oleh mesin validasi `safe_int()` untuk mencegah sistem *crash*.
+* **Validasi Ekstra Ketat:** Sistem mewajibkan indikator **Umur (11+, 9+, 6+)** dan **Takaran/Volume (100ML, 200ML, dll)** harus cocok mutlak (Exact Match) untuk menyambung stok. Jika luput, barang tersebut diblokade dan dipindahkan ke antrean produk baru demi menghindari tragedi bercampurnya stok *LUNA POS*.
