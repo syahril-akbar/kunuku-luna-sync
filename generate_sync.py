@@ -116,28 +116,6 @@ for r in range(2, ws_sj.max_row + 1):
         if nama and nama.lower() != 'none':
             baris_gagal += 1
 
-def parse_age_vol(text):
-    text = text.upper()
-    age_match = re.search(r'(\d+\+)', text)
-    vol_match = re.search(r'(\d+)\s*ML', text)
-    age = age_match.group(1) if age_match else None
-    vol = vol_match.group(1) + "ML" if vol_match else None
-    return age, vol
-
-def extract_variant(name, prefix):
-    name_up = name.upper()
-    pattern = rf'^{prefix}\s+BUBUR\s+\d+\+\s+\d+\s*ML\s+'
-    match = re.search(pattern, name_up)
-    if match:
-        return name_up[match.end():].strip()
-    
-    pattern2 = rf'^{prefix}\s+'
-    match2 = re.search(pattern2, name_up)
-    if match2:
-        return name_up[match2.end():].strip()
-        
-    return name_up.strip()
-
 def normalize_spaces(text):
     return ' '.join(str(text).split()).upper()
 
