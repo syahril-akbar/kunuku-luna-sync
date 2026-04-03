@@ -242,7 +242,7 @@ for i, u in enumerate(unmatched_items, 1):
     row = [
         i, u['id'], nama_baru, "Y", "N", 
         harga_jual, harga_modal_luna, "Y", u['qty'], 1, 
-        "General", u['satuan'] or "Pcs"
+        "", str(u['satuan']).upper() if u['satuan'] else "PCS"
     ] + ([None] * 8)
     ws_new.append(row)
 auto_resize_columns(ws_new)
