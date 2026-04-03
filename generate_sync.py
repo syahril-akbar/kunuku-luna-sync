@@ -52,7 +52,7 @@ wb_produk = openpyxl.load_workbook('Produk.xlsx', data_only=True)
 ws_produk = wb_produk['Sheet1']
 
 luna_data = {}
-luna_names = []
+all_luna_skus = set()
 for r in range(2, ws_produk.max_row + 1):
     sku = ws_produk.cell(r, 1).value
     nama = str(ws_produk.cell(r, 2).value or "").strip()
@@ -60,6 +60,9 @@ for r in range(2, ws_produk.max_row + 1):
     harga_jual = ws_produk.cell(r, 6).value
     harga_modal = ws_produk.cell(r, 8).value
     if sku and nama and str(sku).strip().lower() != 'perintis' and nama.lower() != 'none':
+        sku_str = str(sku).strip()
+        all_luna_skus.add(sku_str)
+        
         nama_str = nama.strip()
         # FILTER: Blokir SKU cabang lain (misal MLG) menyusup ke data PRT
         if not nama_str.upper().startswith(warehouse_prefix):
@@ -72,7 +75,6 @@ for r in range(2, ws_produk.max_row + 1):
             'harga_jual': harga_jual,
             'harga_modal': harga_modal
         }
-        luna_names.append((sku_str, nama_str.lower()))
 
 try:
     wb_sj = openpyxl.load_workbook(sj_filename, data_only=True)
@@ -223,8 +225,12 @@ for i, u in enumerate(unmatched_items, 1):
     harga_jual = u['harga_modal']
     harga_modal_luna = 0 # Request Finance
     nama_baru = format_nama_luna(u['nama'], warehouse_prefix)
-    import uuid
-    auto_sku = f"{warehouse_prefix}-{uuid.uuid4().hex[:5].upper()}"
+    import random
+    auto_sku = f"{random.randint(1, 99999):05d}"
+    while auto_sku in all_luna_skus:
+        auto_sku = f"{random.randint(1, 99999):05d}"
+    all_luna_skus.add(auto_sku)
+    
     row = [
         i, auto_sku, nama_baru, "Y", "N", 
         harga_jual, harga_modal_luna, "Y", u['qty'], 1, 
