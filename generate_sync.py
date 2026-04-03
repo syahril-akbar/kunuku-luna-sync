@@ -57,7 +57,16 @@ for r in range(2, ws_produk.max_row + 1):
 
 try:
     wb_sj = openpyxl.load_workbook(sj_filename, data_only=True)
-    ws_sj = wb_sj.active # Gunakan sheet pertama yang aktif secara default untuk handle format bebas
+    
+    # Auto-detect target sheet (Pilih sheet dengan baris data terbanyak)
+    ws_sj = wb_sj.active
+    biggest_row = 0
+    for sheet in wb_sj.sheetnames:
+        if wb_sj[sheet].max_row > biggest_row:
+            biggest_row = wb_sj[sheet].max_row
+            ws_sj = wb_sj[sheet]
+            
+    print(f"--> Target Data Terdeteksi di Sheet: '{ws_sj.title}' ({biggest_row} Baris)")
 except Exception as e:
     print(f"ERROR: Gagal membaca file excel Surat Jalan. Exception: {e}")
     sys.exit(1)
