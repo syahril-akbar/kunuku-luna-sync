@@ -223,8 +223,10 @@ for i, u in enumerate(unmatched_items, 1):
     harga_jual = u['harga_modal']
     harga_modal_luna = 0 # Request Finance
     nama_baru = format_nama_luna(u['nama'], warehouse_prefix)
+    import uuid
+    auto_sku = f"{warehouse_prefix}-{uuid.uuid4().hex[:5].upper()}"
     row = [
-        i, u['id'], nama_baru, "Y", "N", 
+        i, auto_sku, nama_baru, "Y", "N", 
         harga_jual, harga_modal_luna, "Y", u['qty'], 1, 
         "", str(u['satuan']).upper() if u['satuan'] else "PCS"
     ] + ([None] * 8)
