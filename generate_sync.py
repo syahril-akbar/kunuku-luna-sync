@@ -139,7 +139,6 @@ mapping_review = []
 
 for id_sj, item_sj in sj_data.items():
     expected_luna_name = format_nama_luna(item_sj['nama'], warehouse_prefix)
-    sj_age, sj_vol = parse_age_vol(expected_luna_name)
     
     best_match_sku = None
     best_match_nama_luna = None
