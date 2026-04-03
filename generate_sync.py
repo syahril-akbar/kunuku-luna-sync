@@ -166,13 +166,20 @@ for id_sj, item_sj in sj_data.items():
     best_match_sku = None
     best_match_nama_luna = None
     
-    # Exact Match Strict Pattern System (Tanpa Prediksi)
-    expected_norm = normalize_spaces(expected_luna_name)
-    for sku, data in luna_data.items():
-        if normalize_spaces(data['nama']) == expected_norm:
-            best_match_sku = sku
-            best_match_nama_luna = data['nama']
-            break
+    # 0. Prioritaskan Pencocokan ID (SKU) Mutlak terlebih dahulu
+    # Ini menjamin jika Gudang memasukkan SKU yg sudah terdaftar, ia tidak akan dijadikan Barang Baru
+    if id_sj in luna_data:
+        best_match_sku = id_sj
+        best_match_nama_luna = luna_data[id_sj]['nama']
+    
+    # 1. Exact Match Strict Pattern System (Jika ID tidak cocok/kosong, coba cocokkan lewat pola Nama)
+    if not best_match_sku:
+        expected_norm = normalize_spaces(expected_luna_name)
+        for sku, data in luna_data.items():
+            if normalize_spaces(data['nama']) == expected_norm:
+                best_match_sku = sku
+                best_match_nama_luna = data['nama']
+                break
     
     mapping_review.append({
         'id_sj': id_sj,
