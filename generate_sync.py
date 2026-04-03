@@ -110,15 +110,19 @@ def parse_age_vol(text):
     vol = vol_match.group(1) + "ML" if vol_match else None
     return age, vol
 
-def extract_variant(name, age, vol, prefix):
-    if age and vol:
-        p = f"{prefix} BUBUR {age} {vol} ".upper()
-        if name.upper().startswith(p):
-            return name[len(p):].strip()
-    p2 = f"{prefix} ".upper()
-    if name.upper().startswith(p2):
-        return name[len(p2):].strip()
-    return name.strip()
+def extract_variant(name, prefix):
+    name_up = name.upper()
+    pattern = rf'^{prefix}\s+BUBUR\s+\d+\+\s+\d+\s*ML\s+'
+    match = re.search(pattern, name_up)
+    if match:
+        return name_up[match.end():].strip()
+    
+    pattern2 = rf'^{prefix}\s+'
+    match2 = re.search(pattern2, name_up)
+    if match2:
+        return name_up[match2.end():].strip()
+        
+    return name_up.strip()
 
 def format_nama_luna(name, prefix):
     name = name.upper()
@@ -154,14 +158,14 @@ for id_sj, item_sj in sj_data.items():
             
     # 2. Strict Fuzzy Match (Perbandingan murni pada Varian saja)
     if not best_match_sku:
-        sj_variant_pure = extract_variant(expected_luna_name, sj_age, sj_vol, warehouse_prefix)
+        sj_variant_pure = extract_variant(expected_luna_name, warehouse_prefix)
         
         luna_variants = {}
         for d_nama in [data['nama'] for data in luna_data.values()]:
             l_age, l_vol = parse_age_vol(d_nama)
             # Filter hanya nama di LUNA yang punya Umur & Volume sama persis (atau sama-sama None)
             if l_age == sj_age and l_vol == sj_vol:
-                pure_var = extract_variant(d_nama, l_age, l_vol, warehouse_prefix)
+                pure_var = extract_variant(d_nama, warehouse_prefix)
                 luna_variants[pure_var] = d_nama
                 
         # Cutoff 0.72 pada varian pure sangat tanggap membedakan "Dalca Sapi" vs "Chicken Pate"
