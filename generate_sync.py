@@ -110,6 +110,16 @@ def parse_age_vol(text):
     vol = vol_match.group(1) + "ML" if vol_match else None
     return age, vol
 
+def extract_variant(name, age, vol, prefix):
+    if age and vol:
+        p = f"{prefix} BUBUR {age} {vol} ".upper()
+        if name.upper().startswith(p):
+            return name[len(p):].strip()
+    p2 = f"{prefix} ".upper()
+    if name.upper().startswith(p2):
+        return name[len(p2):].strip()
+    return name.strip()
+
 def format_nama_luna(name, prefix):
     name = name.upper()
     match_bubur = re.search(r'^(N\.?\s*TIM\.?|B\.+|B)\s+(.*?)\s+(\d+\+)\s+(\d+\s*ML)$', name)
@@ -142,28 +152,27 @@ for id_sj, item_sj in sj_data.items():
             best_match_nama_luna = data['nama']
             break
             
-    # 2. Strict Fuzzy Match (Hanya acc jika atribut kunci sama)
+    # 2. Strict Fuzzy Match (Perbandingan murni pada Varian saja)
     if not best_match_sku:
-        all_luna_names = [data['nama'] for data in luna_data.values()]
-        # Cutoff diperketat ke 0.78 untuk mencegah nama varian jauh (Chicken Pate vs Dalca) lolos karena nama depan (PRT BUBUR...) panjang sama
-        matches = difflib.get_close_matches(expected_luna_name, all_luna_names, n=5, cutoff=0.78)
-        for match in matches:
-            luna_age, luna_vol = parse_age_vol(match)
-            if sj_age == luna_age and sj_vol == luna_vol:
-                for sku, data in luna_data.items():
-                    if data['nama'] == match:
-                        best_match_sku = sku
-                        best_match_nama_luna = data['nama']
-                        break
-                break # Sudah ketemu yang pas
-            elif sj_age is None and sj_vol is None:
-                # Kasus toleransi: Admin tidak nulis umur/ML di Surat Jalan (misal untuk Sup/Kaldu)
-                for sku, data in luna_data.items():
-                    if data['nama'] == match:
-                        best_match_sku = sku
-                        best_match_nama_luna = data['nama']
-                        break
-                break
+        sj_variant_pure = extract_variant(expected_luna_name, sj_age, sj_vol, warehouse_prefix)
+        
+        luna_variants = {}
+        for d_nama in [data['nama'] for data in luna_data.values()]:
+            l_age, l_vol = parse_age_vol(d_nama)
+            # Filter hanya nama di LUNA yang punya Umur & Volume sama persis (atau sama-sama None)
+            if l_age == sj_age and l_vol == sj_vol:
+                pure_var = extract_variant(d_nama, l_age, l_vol, warehouse_prefix)
+                luna_variants[pure_var] = d_nama
+                
+        # Cutoff 0.72 pada varian pure sangat tanggap membedakan "Dalca Sapi" vs "Chicken Pate"
+        matches = difflib.get_close_matches(sj_variant_pure, luna_variants.keys(), n=1, cutoff=0.72)
+        if matches:
+            match_full_name = luna_variants[matches[0]]
+            for sku, data in luna_data.items():
+                if data['nama'] == match_full_name:
+                    best_match_sku = sku
+                    best_match_nama_luna = data['nama']
+                    break
     
     mapping_review.append({
         'id_sj': id_sj,
