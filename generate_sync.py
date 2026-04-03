@@ -46,14 +46,19 @@ for r in range(2, ws_produk.max_row + 1):
     harga_jual = ws_produk.cell(r, 6).value
     harga_modal = ws_produk.cell(r, 8).value
     if sku and nama and str(sku).strip().lower() != 'perintis' and nama.lower() != 'none':
+        nama_str = nama.strip()
+        # FILTER: Blokir SKU cabang lain (misal MLG) menyusup ke data PRT
+        if not nama_str.upper().startswith(warehouse_prefix):
+            continue
+            
         sku_str = str(sku).strip()
         luna_data[sku_str] = {
-            'nama': nama,
+            'nama': nama_str,
             'qty': qty,
             'harga_jual': harga_jual,
             'harga_modal': harga_modal
         }
-        luna_names.append((sku_str, nama.lower()))
+        luna_names.append((sku_str, nama_str.lower()))
 
 try:
     wb_sj = openpyxl.load_workbook(sj_filename, data_only=True)
@@ -140,8 +145,8 @@ for id_sj, item_sj in sj_data.items():
     # 2. Strict Fuzzy Match (Hanya acc jika atribut kunci sama)
     if not best_match_sku:
         all_luna_names = [data['nama'] for data in luna_data.values()]
-        # Cutoff bisa dilonggarkan karena udah dijagain sama validasi atribut
-        matches = difflib.get_close_matches(expected_luna_name, all_luna_names, n=5, cutoff=0.55)
+        # Cutoff diperketat ke 0.78 untuk mencegah nama varian jauh (Chicken Pate vs Dalca) lolos karena nama depan (PRT BUBUR...) panjang sama
+        matches = difflib.get_close_matches(expected_luna_name, all_luna_names, n=5, cutoff=0.78)
         for match in matches:
             luna_age, luna_vol = parse_age_vol(match)
             if sj_age == luna_age and sj_vol == luna_vol:
