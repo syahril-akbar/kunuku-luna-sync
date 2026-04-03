@@ -124,13 +124,16 @@ def extract_variant(name, prefix):
         
     return name_up.strip()
 
+def normalize_spaces(text):
+    return ' '.join(str(text).split()).upper()
+
 def format_nama_luna(name, prefix):
-    name = name.upper()
-    match_bubur = re.search(r'^(N\.?\s*TIM\.?|B\.+|B)\s+(.*?)\s+(\d+\+)\s+(\d+\s*ML)$', name)
+    name = normalize_spaces(name)
+    match_bubur = re.search(r'^(N\.?\s*TIM\.?|B\.+|B)\s+(.*?)\s+(\d+\+)\s+(\d+)\s*ML$', name)
     if match_bubur:
         varian = match_bubur.group(2).strip()
         umur = match_bubur.group(3).strip()
-        volume = match_bubur.group(4).strip()
+        volume = match_bubur.group(4).strip() + " ML"
         return f'{prefix} BUBUR {umur} {volume} {varian}'
     if name.startswith('KALDU'):
         return f'{prefix} {name}'
@@ -149,34 +152,13 @@ for id_sj, item_sj in sj_data.items():
     best_match_sku = None
     best_match_nama_luna = None
     
-    # 1. Coba Exact Match Dulu
+    # Exact Match Strict Pattern System (Tanpa Prediksi)
+    expected_norm = normalize_spaces(expected_luna_name)
     for sku, data in luna_data.items():
-        if data['nama'].upper() == expected_luna_name.upper():
+        if normalize_spaces(data['nama']) == expected_norm:
             best_match_sku = sku
             best_match_nama_luna = data['nama']
             break
-            
-    # 2. Strict Fuzzy Match (Perbandingan murni pada Varian saja)
-    if not best_match_sku:
-        sj_variant_pure = extract_variant(expected_luna_name, warehouse_prefix)
-        
-        luna_variants = {}
-        for d_nama in [data['nama'] for data in luna_data.values()]:
-            l_age, l_vol = parse_age_vol(d_nama)
-            # Filter hanya nama di LUNA yang punya Umur & Volume sama persis (atau sama-sama None)
-            if l_age == sj_age and l_vol == sj_vol:
-                pure_var = extract_variant(d_nama, warehouse_prefix)
-                luna_variants[pure_var] = d_nama
-                
-        # Cutoff 0.72 pada varian pure sangat tanggap membedakan "Dalca Sapi" vs "Chicken Pate"
-        matches = difflib.get_close_matches(sj_variant_pure, luna_variants.keys(), n=1, cutoff=0.72)
-        if matches:
-            match_full_name = luna_variants[matches[0]]
-            for sku, data in luna_data.items():
-                if data['nama'] == match_full_name:
-                    best_match_sku = sku
-                    best_match_nama_luna = data['nama']
-                    break
     
     mapping_review.append({
         'id_sj': id_sj,
