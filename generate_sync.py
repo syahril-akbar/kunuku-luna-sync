@@ -225,14 +225,8 @@ for i, u in enumerate(unmatched_items, 1):
     harga_jual = u['harga_modal']
     harga_modal_luna = 0 # Request Finance
     nama_baru = format_nama_luna(u['nama'], warehouse_prefix)
-    import random
-    auto_sku = f"{random.randint(1, 99999):05d}"
-    while auto_sku in all_luna_skus:
-        auto_sku = f"{random.randint(1, 99999):05d}"
-    all_luna_skus.add(auto_sku)
-    
     row = [
-        i, auto_sku, nama_baru, "Y", "N", 
+        i, "", nama_baru, "Y", "N", 
         harga_jual, harga_modal_luna, "Y", u['qty'], 1, 
         "", str(u['satuan']).upper() if u['satuan'] else "PCS"
     ] + ([None] * 8)
