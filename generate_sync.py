@@ -1,8 +1,22 @@
 import openpyxl
+from openpyxl.utils import get_column_letter
 import difflib
 import re
 import os
 import sys
+
+def auto_resize_columns(ws):
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter # Dapatkan huruf kolom
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = (max_length + 2)
+        ws.column_dimensions[column].width = min(adjusted_width, 60)
 
 def safe_int(value):
     if value is None:
@@ -202,6 +216,7 @@ for m in mapping_review:
         m['harga_modal_sj'],
         status
     ])
+auto_resize_columns(ws_review)
 wb_review.save(f"Hasil_Mapping_Review_{file_suffix}.xlsx")
 
 wb_tf = openpyxl.load_workbook('warehouse-transfer-import-template.xlsx')
@@ -212,6 +227,7 @@ if ws_tf.max_row >= 4:
 for i, m in enumerate(matched_items, 1):
     row = [i, m['sku'], m['nama'], m['satuan'], m['qty']] + ([None] * 20)
     ws_tf.append(row)
+auto_resize_columns(ws_tf)
 wb_tf.save(f"Siap_Warehouse_Transfer_{file_suffix}.xlsx")
 
 wb_new = openpyxl.load_workbook('product-import-template.xlsx')
@@ -229,6 +245,7 @@ for i, u in enumerate(unmatched_items, 1):
         "General", u['satuan'] or "Pcs"
     ] + ([None] * 8)
     ws_new.append(row)
+auto_resize_columns(ws_new)
 wb_new.save(f"Siap_Product_Baru_{file_suffix}.xlsx")
 
 # ---- FITUR LAPORAN OTOMATIS AKHIR ----
