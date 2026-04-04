@@ -4,6 +4,17 @@ import difflib
 import re
 import os
 import sys
+import shutil
+import warnings
+
+# Bungkam peringatan bawel dari openpyxl (DrawingML warning)
+warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+
+OUTLET_CATEGORIES = {
+    "PRT": "PERINTIS",
+    "HRT": "HERTASNING",
+    "MLG": "MALANG"
+}
 
 def auto_resize_columns(ws):
     for col in ws.columns:
@@ -28,18 +39,35 @@ def safe_int(value):
 
 print("Memulai proses sinkronisasi dan pencocokan data...")
 
-sj_filename = input("Masukkan nama/path file Surat Jalan (.xlsx) \n(contoh: SURAT JALAN BARU.xlsx): ").strip(" '\"")
-if not sj_filename.endswith('.xlsx'):
-    sj_filename += '.xlsx'
+# 1. Validasi File Surat Jalan
+while True:
+    sj_filename = input("\nMasukkan nama/path file Surat Jalan (.xlsx): ").strip(" '\"")
+    if not sj_filename.endswith('.xlsx'):
+        sj_filename += '.xlsx'
     
-if not os.path.exists(sj_filename):
-    print(f"ERROR: File '{sj_filename}' tidak ditemukan! Pastikan file benar-benar ada di folder ini.")
-    sys.exit(1)
+    if os.path.exists(sj_filename):
+        break
+    else:
+        print(f"⚠️ ERROR: File '{sj_filename}' tidak ditemukan!")
+        print("File yang tersedia di folder ini:")
+        xlsx_files = [f for f in os.listdir('.') if f.endswith('.xlsx')]
+        for f in xlsx_files:
+            print(f"  - {f}")
 
-warehouse_prefix = input("Masukkan awalan Warehouse (contoh: PRT untuk Perintis, HRT untuk Hertasning): ").strip().upper()
-if not warehouse_prefix:
-    warehouse_prefix = "PRT"
-print(f"Menggunakan awalan untuk produk baru: {warehouse_prefix}")
+# 2. Pemilihan Cabang (Strict Selection)
+print("\nPilih Cabang Target:")
+options = list(OUTLET_CATEGORIES.keys())
+for idx, code in enumerate(options, 1):
+    print(f"{idx}. {code} ({OUTLET_CATEGORIES[code]})")
+
+while True:
+    choice = input(f"Pilih nomor (1-{len(options)}): ").strip()
+    if choice.isdigit() and 1 <= int(choice) <= len(options):
+        warehouse_prefix = options[int(choice) - 1]
+        break
+    print("⚠️ Input tidak valid! Pilih nomor yang tersedia.")
+
+print(f"✅ Menggunakan awalan: {warehouse_prefix} ({OUTLET_CATEGORIES[warehouse_prefix]})")
 
 base_name = os.path.splitext(os.path.basename(sj_filename))[0]
 suffix_text = re.sub(r'(?i)SURAT JALAN', '', base_name)
@@ -47,6 +75,32 @@ suffix_text = re.sub(r'(?i)FIX', '', suffix_text)
 file_suffix = re.sub(r'[^A-Za-z0-9]+', '_', suffix_text).strip('_')
 if not file_suffix:
     file_suffix = "OUTPUT"
+
+# 3. Setup Folder Output (Berdasarkan Nama Cabang + Tanggal dr Nama File)
+branch_name = OUTLET_CATEGORIES[warehouse_prefix]
+
+# BERSIHKAN file_suffix dari redundancy nama cabang
+# Hapus prefix (misal 'PRT') dan nama cabang (misal 'PERINTIS') dari suffix_text
+clean_suffix = file_suffix
+to_remove = [warehouse_prefix, branch_name, "OUTLET", "OUTET"] # Tambahkan kata umum yang sering muncul
+for word in to_remove:
+    # Gunakan RegEx untuk menghapus kata secara case-insensitive
+    clean_suffix = re.sub(rf'(?i){word}', '', clean_suffix).strip('_')
+
+# Pastikan tidak ada double underscore atau underscore menggantung
+clean_suffix = re.sub(r'_{2,}', '_', clean_suffix).strip('_')
+
+if not clean_suffix:
+    clean_suffix = "OUTPUT"
+
+folder_name = f"{branch_name}_{clean_suffix}"
+output_dir = os.path.join(os.getcwd(), folder_name)
+
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+    print(f"📂 Membuat folder baru: {folder_name}")
+else:
+    print(f"📂 Menggunakan folder yang ada: {folder_name}")
 
 wb_produk = openpyxl.load_workbook('Produk.xlsx', data_only=True)
 ws_produk = wb_produk['Sheet1']
@@ -60,15 +114,14 @@ for r in range(2, ws_produk.max_row + 1):
     harga_jual = ws_produk.cell(r, 6).value
     harga_modal = ws_produk.cell(r, 8).value
     if sku and nama and str(sku).strip().lower() != 'perintis' and nama.lower() != 'none':
-        sku_str = str(sku).strip()
+        sku_str = str(sku).strip() # STRIP SKU
         all_luna_skus.add(sku_str)
         
-        nama_str = nama.strip()
+        nama_str = nama.strip() # STRIP NAMA
         # FILTER: Blokir SKU cabang lain (misal MLG) menyusup ke data PRT
         if not nama_str.upper().startswith(warehouse_prefix):
             continue
             
-        sku_str = str(sku).strip()
         luna_data[sku_str] = {
             'nama': nama_str,
             'qty': qty,
@@ -203,7 +256,9 @@ for m in mapping_review:
         status
     ])
 auto_resize_columns(ws_review)
-wb_review.save(f"Hasil_Mapping_Review_{file_suffix}.xlsx")
+# Simpan ke folder output
+review_file = os.path.join(output_dir, f"Hasil_Mapping_Review_{file_suffix}.xlsx")
+wb_review.save(review_file)
 
 wb_tf = openpyxl.load_workbook('warehouse-transfer-import-template.xlsx')
 ws_tf = wb_tf.active
@@ -214,7 +269,9 @@ for i, m in enumerate(matched_items, 1):
     row = [i, m['sku'], m['nama'], m['satuan'], m['qty']] + ([None] * 20)
     ws_tf.append(row)
 auto_resize_columns(ws_tf)
-wb_tf.save(f"Siap_Warehouse_Transfer_{file_suffix}.xlsx")
+# Simpan ke folder output
+tf_file = os.path.join(output_dir, f"Siap_Warehouse_Transfer_{file_suffix}.xlsx")
+wb_tf.save(tf_file)
 
 wb_new = openpyxl.load_workbook('product-import-template.xlsx')
 ws_new = wb_new.active
@@ -225,14 +282,17 @@ for i, u in enumerate(unmatched_items, 1):
     harga_jual = u['harga_modal']
     harga_modal_luna = 0 # Request Finance
     nama_baru = format_nama_luna(u['nama'], warehouse_prefix)
+    kategori = OUTLET_CATEGORIES.get(warehouse_prefix, warehouse_prefix)
     row = [
         i, "", nama_baru, "Y", "N", 
         harga_jual, harga_modal_luna, "Y", u['qty'], 1, 
-        "", str(u['satuan']).upper() if u['satuan'] else "PCS"
+        kategori, str(u['satuan']).upper() if u['satuan'] else "PCS"
     ] + ([None] * 8)
     ws_new.append(row)
 auto_resize_columns(ws_new)
-wb_new.save(f"Siap_Product_Baru_{file_suffix}.xlsx")
+# Simpan ke folder output
+new_prod_file = os.path.join(output_dir, f"Siap_Product_Baru_{file_suffix}.xlsx")
+wb_new.save(new_prod_file)
 
 # ---- FITUR LAPORAN OTOMATIS AKHIR ----
 total_qty_transfer = sum(m['qty'] for m in matched_items)
@@ -273,8 +333,23 @@ Total Nilai Barang (Harga Satuan)  : {rp_baru_str}
 ========================================="""
 
 laporan_filename = f"Laporan_Mutasi_{file_suffix}.txt"
-with open(laporan_filename, "w", encoding="utf-8") as f:
+laporan_path = os.path.join(output_dir, laporan_filename)
+with open(laporan_path, "w", encoding="utf-8") as f:
     f.write(laporan_text)
 
+# Pindahkan file Surat Jalan (SJ) asli ke folder output untuk arsip
+try:
+    target_sj_path = os.path.join(output_dir, os.path.basename(sj_filename))
+    if os.path.exists(target_sj_path):
+        os.remove(target_sj_path)
+    
+    shutil.move(sj_filename, target_sj_path)
+    print(f"📦 File sumber '{os.path.basename(sj_filename)}' dipindahkan ke folder {branch_name} untuk arsip.")
+except PermissionError:
+    print(f"⚠️ PERINGATAN: File '{os.path.basename(sj_filename)}' sedang dibuka oleh program lain (Excel?).")
+    print(f"   --> File GAGAL dipindahkan otomatis, tapi hasil generate DI DALAM FOLDER {branch_name} tetap aman.")
+except Exception as e:
+    print(f"⚠️ Peringatan: Gagal memindahkan file sumber: {e}")
+
 print(f"\n{laporan_text}\n")
-print(f"File berhasil di-generate! Laporan juga telah disimpan di {laporan_filename}")
+print(f"✅ Semua file berhasil disimpan di folder: {output_dir}")
