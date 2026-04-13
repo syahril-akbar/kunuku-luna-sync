@@ -153,7 +153,8 @@ for r in range(2, ws_sj.max_row + 1):
     qty_raw = ws_sj.cell(r, 5).value
     qty = safe_int(qty_raw)
     sat = str(ws_sj.cell(r, 6).value or "").strip()
-    harga_raw = ws_sj.cell(r, 9).value
+    # Kolom harga pada format Surat Jalan Hertasning berada di kolom 10 (Harga Satuan)
+    harga_raw = ws_sj.cell(r, 10).value
     harga = safe_int(harga_raw)
     
     if id_p and nama and nama.lower() != 'none':
@@ -350,6 +351,18 @@ except PermissionError:
     print(f"   --> File GAGAL dipindahkan otomatis, tapi hasil generate DI DALAM FOLDER {branch_name} tetap aman.")
 except Exception as e:
     print(f"⚠️ Peringatan: Gagal memindahkan file sumber: {e}")
+
+# Copy file Produk.xlsx ke folder output sebagai referensi
+try:
+    produk_src = 'Produk.xlsx'
+    produk_dst = os.path.join(output_dir, 'Produk.xlsx')
+    if os.path.exists(produk_src):
+        shutil.copy2(produk_src, produk_dst)
+        print(f"📋 File 'Produk.xlsx' di-copy ke folder {branch_name} sebagai referensi.")
+    else:
+        print(f"⚠️ Peringatan: File 'Produk.xlsx' tidak ditemukan untuk di-copy.")
+except Exception as e:
+    print(f"⚠️ Peringatan: Gagal meng-copy file Produk.xlsx: {e}")
 
 print(f"\n{laporan_text}\n")
 print(f"✅ Semua file berhasil disimpan di folder: {output_dir}")
