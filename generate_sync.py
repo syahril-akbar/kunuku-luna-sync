@@ -145,16 +145,42 @@ except Exception as e:
     print(f"ERROR: Gagal membaca file excel Surat Jalan. Exception: {e}")
     sys.exit(1)
 
+# --- AUTO DETECT COLUMNS ---
+header_map = {}
+for c in range(1, ws_sj.max_column + 1):
+    val = str(ws_sj.cell(1, c).value or "").strip().upper()
+    if val:
+        if val not in header_map:
+            header_map[val] = c
+        else:
+            header_map[f"{val}_DUPLICATE_{c}"] = c
+
+# Map indices with aliases
+def get_col_index(aliases, default):
+    for alias in aliases:
+        if alias.upper() in header_map:
+            return header_map[alias.upper()]
+    return default
+
+col_id = get_col_index(["ID PRODUK", "SKU", "ID"], 1)
+col_nama = get_col_index(["NAMA PRODUK", "NAMA BARANG", "NAMA"], 2)
+# Prioritaskan 'QTY' jika ada, kalau cuma ada 'TOTAL' ambil yang pertama (biasanya Qty)
+col_qty = get_col_index(["QTY", "QUANTITY", "TOTAL"], 5)
+col_sat = get_col_index(["SATUAN", "SAT"], 6)
+# Prioritaskan 'HARGA' (Harga Satuan)
+col_harga = get_col_index(["HARGA", "HARGA SATUAN", "UNIT PRICE"], 9)
+
+print(f"--> Column Mapping: ID({col_id}), Nama({col_nama}), Qty({col_qty}), Sat({col_sat}), Harga({col_harga})")
+
 sj_data = {}
 baris_gagal = 0
 for r in range(2, ws_sj.max_row + 1):
-    id_p = ws_sj.cell(r, 1).value
-    nama = str(ws_sj.cell(r, 2).value or "").strip()
-    qty_raw = ws_sj.cell(r, 5).value
+    id_p = ws_sj.cell(r, col_id).value
+    nama = str(ws_sj.cell(r, col_nama).value or "").strip()
+    qty_raw = ws_sj.cell(r, col_qty).value
     qty = safe_int(qty_raw)
-    sat = str(ws_sj.cell(r, 6).value or "").strip()
-    # Kolom harga pada format Surat Jalan Hertasning berada di kolom 10 (Harga Satuan)
-    harga_raw = ws_sj.cell(r, 10).value
+    sat = str(ws_sj.cell(r, col_sat).value or "").strip()
+    harga_raw = ws_sj.cell(r, col_harga).value
     harga = safe_int(harga_raw)
     
     if id_p and nama and nama.lower() != 'none':
