@@ -1,5 +1,6 @@
 import openpyxl
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import PatternFill, Font, Alignment
 import difflib
 import re
 import os
@@ -102,58 +103,86 @@ if not os.path.exists(output_dir):
 else:
     print(f"📂 Menggunakan folder yang ada: {folder_name}")
 
-wb_produk = openpyxl.load_workbook('Produk.xlsx', data_only=True)
-ws_produk = wb_produk['Sheet1']
-
-luna_data = {}
-all_luna_skus = set()
-for r in range(2, ws_produk.max_row + 1):
-    sku = ws_produk.cell(r, 1).value
-    nama = str(ws_produk.cell(r, 2).value or "").strip()
-    qty = ws_produk.cell(r, 4).value
-    harga_jual = ws_produk.cell(r, 6).value
-    harga_modal = ws_produk.cell(r, 8).value
-    if sku and nama and str(sku).strip().lower() != 'perintis' and nama.lower() != 'none':
-        sku_str = str(sku).strip() # STRIP SKU
-        all_luna_skus.add(sku_str)
+try:
+    if not os.path.exists('Produk.xlsx'):
+        print("❌ ERROR: File 'Produk.xlsx' (Master Data Luna) tidak ditemukan di folder root!")
+        sys.exit(1)
         
-        nama_str = nama.strip() # STRIP NAMA
-        # FILTER: Blokir SKU cabang lain (misal MLG) menyusup ke data PRT
-        if not nama_str.upper().startswith(warehouse_prefix):
-            continue
+    wb_produk = openpyxl.load_workbook('Produk.xlsx', data_only=True)
+    ws_produk = wb_produk.active # Gunakan sheet aktif
+    
+    luna_data = {}
+    all_luna_skus = set()
+    for r in range(2, ws_produk.max_row + 1):
+        sku = ws_produk.cell(r, 1).value
+        nama = str(ws_produk.cell(r, 2).value or "").strip()
+        qty = ws_produk.cell(r, 4).value
+        harga_jual = ws_produk.cell(r, 6).value
+        harga_modal = ws_produk.cell(r, 8).value
+        
+        if sku and nama and str(sku).strip().lower() != 'perintis' and nama.lower() != 'none':
+            sku_str = str(sku).strip()
+            all_luna_skus.add(sku_str)
             
-        luna_data[sku_str] = {
-            'nama': nama_str,
-            'qty': qty,
-            'harga_jual': harga_jual,
-            'harga_modal': harga_modal
-        }
+            nama_str = nama.strip()
+            # FILTER: Blokir SKU cabang lain (misal MLG) menyusup ke data PRT/HRT
+            if not nama_str.upper().startswith(warehouse_prefix):
+                continue
+                
+            luna_data[sku_str] = {
+                'nama': nama_str,
+                'qty': qty,
+                'harga_jual': harga_jual,
+                'harga_modal': harga_modal
+            }
+except Exception as e:
+    print(f"❌ ERROR: Gagal membaca 'Produk.xlsx'. Pastikan file tidak sedang dibuka. ({e})")
+    sys.exit(1)
 
+# --- DETEKSI SHEET TERBAIK ---
 try:
     wb_sj = openpyxl.load_workbook(sj_filename, data_only=True)
-    
-    # Auto-detect target sheet (Pilih sheet dengan baris data terbanyak)
     ws_sj = wb_sj.active
     biggest_row = 0
     for sheet in wb_sj.sheetnames:
-        if wb_sj[sheet].max_row > biggest_row:
-            biggest_row = wb_sj[sheet].max_row
-            ws_sj = wb_sj[sheet]
+        temp_ws = wb_sj[sheet]
+        if temp_ws.max_row > biggest_row:
+            biggest_row = temp_ws.max_row
+            ws_sj = temp_ws
             
-    print(f"--> Target Data Terdeteksi di Sheet: '{ws_sj.title}' ({biggest_row} Baris)")
+    print(f"--> Target Data: '{ws_sj.title}' ({biggest_row} Baris)")
 except Exception as e:
-    print(f"ERROR: Gagal membaca file excel Surat Jalan. Exception: {e}")
+    print(f"❌ ERROR: Gagal membaca Surat Jalan. ({e})")
     sys.exit(1)
 
-# --- AUTO DETECT COLUMNS ---
+# --- SMART HEADER DETECTION (Cek 5 Baris Pertama) ---
 header_map = {}
-for c in range(1, ws_sj.max_column + 1):
-    val = str(ws_sj.cell(1, c).value or "").strip().upper()
-    if val:
-        if val not in header_map:
-            header_map[val] = c
-        else:
-            header_map[f"{val}_DUPLICATE_{c}"] = c
+header_row_index = 1
+
+for r in range(1, 6):
+    temp_map = {}
+    found_cols = 0
+    for c in range(1, ws_sj.max_column + 1):
+        val = str(ws_sj.cell(r, c).value or "").strip().upper()
+        if val:
+            temp_map[val] = c
+            found_cols += 1
+    
+    # Jika baris ini punya setidaknya 3 kolom utama, kita anggap ini header
+    main_cols = ["NAMA", "QTY", "ISI", "ITEM", "HARGA", "QUANTITY", "SKU", "ID"]
+    match_count = sum(1 for k in temp_map.keys() if any(m in k for m in main_cols))
+    
+    if match_count >= 3:
+        header_map = temp_map
+        header_row_index = r
+        break
+
+if not header_map:
+    print("❌ ERROR: Gagal mendeteksi header di file Surat Jalan!")
+    print("Pastikan ada kolom dengan nama: ID PRODUK, NAMA BARANG, QTY, dll.")
+    sys.exit(1)
+
+print(f"--> Header terdeteksi di Baris {header_row_index}")
 
 # Map indices with aliases
 def get_col_index(aliases, default):
@@ -172,20 +201,53 @@ col_harga = get_col_index(["HARGA", "HARGA SATUAN", "UNIT PRICE"], 9)
 
 print(f"--> Column Mapping: ID({col_id}), Nama({col_nama}), Qty({col_qty}), Sat({col_sat}), Harga({col_harga})")
 
+# --- PHASE 1: SJ DATA COLLECTION & GROUND TRUTH AUDIT ---
 sj_data = {}
 baris_gagal = 0
-for r in range(2, ws_sj.max_row + 1):
-    id_p = ws_sj.cell(r, col_id).value
-    nama = str(ws_sj.cell(r, col_nama).value or "").strip()
-    qty_raw = ws_sj.cell(r, col_qty).value
-    qty = safe_int(qty_raw)
+
+# Variabel Auditing (Ground Truth)
+target_total_qty = 0
+target_total_rp = 0
+target_total_items = 0
+total_merges = 0
+merged_details = []
+names_to_ids = {} # Untuk deteksi konflik nama
+name_conflicts = []
+
+for r in range(header_row_index + 1, ws_sj.max_row + 1):
+    id_raw = ws_sj.cell(r, col_id).value
+    nama_raw = ws_sj.cell(r, col_nama).value
+    nama = str(nama_raw or "").strip()
+    qty = safe_int(ws_sj.cell(r, col_qty).value)
     sat = str(ws_sj.cell(r, col_sat).value or "").strip()
-    harga_raw = ws_sj.cell(r, col_harga).value
-    harga = safe_int(harga_raw)
+    harga = safe_int(ws_sj.cell(r, col_harga).value)
     
-    if id_p and nama and nama.lower() != 'none':
-        id_str = str(id_p).strip()
+    # Filter baris sampah/kosong
+    if not nama or nama.lower() in ['none', 'nan', '']:
+        continue
+        
+    # Audit: Tambahkan ke Target Ground Truth
+    target_total_qty += qty
+    target_total_rp += (qty * harga)
+    target_total_items += 1
+
+    if id_raw:
+        id_str = str(id_raw).strip()
+        
+        # Deteksi Konflik Nama (Nama sama tapi ID beda)
+        name_norm = nama.upper()
+        if name_norm in names_to_ids:
+            if id_str not in names_to_ids[name_norm]:
+                names_to_ids[name_norm].append(id_str)
+                if name_norm not in name_conflicts:
+                    name_conflicts.append(name_norm)
+        else:
+            names_to_ids[name_norm] = [id_str]
+
         if id_str in sj_data:
+            # DETEKSI DUPLIKASI / MERGE (ID SAMA)
+            total_merges += 1
+            merged_details.append(f"{id_str} ({nama})")
             sj_data[id_str]['qty'] += qty
         else:
             sj_data[id_str] = {
@@ -195,8 +257,18 @@ for r in range(2, ws_sj.max_row + 1):
                 'harga': harga
             }
     else:
-        if nama and nama.lower() != 'none':
-            baris_gagal += 1
+        # Masuk ke kategori error jika nama ada tapi ID hilang
+        baris_gagal += 1
+        # Kita tetap proses sebagai barang tanpa ID untuk audit nanti
+        temp_id = f"NO_ID_{r}"
+        sj_data[temp_id] = {
+            'nama': nama,
+            'qty': qty,
+            'satuan': sat,
+            'harga': harga
+        }
+
+print(f"--> AUDIT INPUT: Terdeteksi {target_total_items} baris produk, Total Qty: {target_total_qty}, Total Rp: {target_total_rp:,}")
 
 def normalize_spaces(text):
     return ' '.join(str(text).split()).upper()
@@ -215,9 +287,10 @@ def format_nama_luna(name, prefix):
         return f'{prefix} {name}'
     return name
 
-matched_items = []
-unmatched_items = []
+matched_items_dict = {} # Key: SKU
+unmatched_items_dict = {} # Key: Formatted Name
 mapping_review = []
+sku_collisions = [] # Untuk deteksi kalau ID SJ beda tapi SKU Luna sama
 
 for id_sj, item_sj in sj_data.items():
     expected_luna_name = format_nama_luna(item_sj['nama'], warehouse_prefix)
@@ -226,12 +299,11 @@ for id_sj, item_sj in sj_data.items():
     best_match_nama_luna = None
     
     # 0. Prioritaskan Pencocokan ID (SKU) Mutlak terlebih dahulu
-    # Ini menjamin jika Gudang memasukkan SKU yg sudah terdaftar, ia tidak akan dijadikan Barang Baru
     if id_sj in luna_data:
         best_match_sku = id_sj
         best_match_nama_luna = luna_data[id_sj]['nama']
     
-    # 1. Exact Match Strict Pattern System (Jika ID tidak cocok/kosong, coba cocokkan lewat pola Nama)
+    # 1. Exact Match Strict Pattern System
     if not best_match_sku:
         expected_norm = normalize_spaces(expected_luna_name)
         for sku, data in luna_data.items():
@@ -246,42 +318,82 @@ for id_sj, item_sj in sj_data.items():
         'qty_sj': item_sj['qty'],
         'sku_luna_prediksi': best_match_sku,
         'nama_luna_prediksi': best_match_nama_luna if best_match_nama_luna else f"[NEW] {format_nama_luna(item_sj['nama'], warehouse_prefix)}",
-        'harga_modal_sj': item_sj['harga']
+        'harga_satuan_sj': item_sj['harga']
     })
     
     if best_match_sku:
-        matched_items.append({
-            'sku': best_match_sku,
-            'nama': best_match_nama_luna,
-            'satuan': item_sj['satuan'],
-            'qty': item_sj['qty']
-        })
+        if best_match_sku in matched_items_dict:
+            # TABRAKAN SKU (Beda ID SJ tapi 1 SKU LUNA)
+            sku_collisions.append(f"{best_match_sku} ({best_match_nama_luna})")
+            matched_items_dict[best_match_sku]['qty'] += item_sj['qty']
+        else:
+            matched_items_dict[best_match_sku] = {
+                'sku': best_match_sku,
+                'nama': best_match_nama_luna,
+                'satuan': item_sj['satuan'],
+                'qty': item_sj['qty']
+            }
     else:
-        unmatched_items.append({
-            'id': id_sj,
-            'nama': item_sj['nama'],
-            'harga_modal': item_sj['harga'],
-            'satuan': item_sj['satuan'],
-            'qty': item_sj['qty']
-        })
+        new_name_key = format_nama_luna(item_sj['nama'], warehouse_prefix)
+        if new_name_key in unmatched_items_dict:
+            unmatched_items_dict[new_name_key]['qty'] += item_sj['qty']
+        else:
+            unmatched_items_dict[new_name_key] = {
+                'id': id_sj,
+                'nama': item_sj['nama'],
+                'harga_satuan_sj': item_sj['harga'],
+                'satuan': item_sj['satuan'],
+                'qty': item_sj['qty']
+            }
+
+matched_items = list(matched_items_dict.values())
+unmatched_items = list(unmatched_items_dict.values())
 
 print(f"Selesai mapping. Ditemukan {len(matched_items)} prediksi sukses, {len(unmatched_items)} produk baru.")
 
 wb_review = openpyxl.Workbook()
 ws_review = wb_review.active
 ws_review.title = "Review Mapping"
-headers_review = ["ID SJ", "Nama SJ", "Qty Transfer", "Prediksi SKU LUNA", "Prediksi Nama LUNA", "Harga Modal dr SJ", "STATUS MATCH"]
+
+# URUTAN OPTIMAL (Mata Kiri ke Kanan): Status -> Nama -> SKU -> Data
+headers_review = ["STATUS MATCH", "Nama SJ", "Prediksi Nama LUNA", "SKU LUNA (Jika Ada)", "Qty Transfer", "Harga Satuan dr SJ", "ID SJ"]
 ws_review.append(headers_review)
 
+# Style buat Header
+for cell in ws_review[1]:
+    cell.font = Font(bold=True)
+    cell.fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+    cell.alignment = Alignment(horizontal='center')
+
+# Style buat Status
+fill_new = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid") # Kuning Muda
+fill_ok = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")  # Hijau Muda
+
 for m in mapping_review:
-    status = "OK (Perlu Review)" if m['sku_luna_prediksi'] else "BARU (Tidak ada di LUNA)"
-    ws_review.append([
-        m['id_sj'], m['nama_sj'], m['qty_sj'], 
-        m['sku_luna_prediksi'] or "N/A", 
-        m['nama_luna_prediksi'] or "N/A", 
-        m['harga_modal_sj'],
-        status
-    ])
+    is_matched = True if m['sku_luna_prediksi'] else False
+    status = "OK (Ketemu di Luna)" if is_matched else "BARU (Perlu Register)"
+    
+    row_data = [
+        status,                          # Kolom 1: Status (Prioritas Mata)
+        m['nama_sj'],                    # Kolom 2: Nama Asli
+        m['nama_luna_prediksi'] or "N/A", # Kolom 3: Nama di Luna
+        m['sku_luna_prediksi'] or "N/A", # Kolom 4: Kode SKU
+        m['qty_sj'],                     # Kolom 5: Qty
+        m['harga_satuan_sj'],            # Kolom 6: Harga
+        m['id_sj']                       # Kolom 7: ID Referensi
+    ]
+    ws_review.append(row_data)
+    
+    # Beri warna pada baris yang baru saja ditambahkan
+    curr_row = ws_review.max_row
+    fill_to_use = fill_ok if is_matched else fill_new
+    
+    # Warnai kolom STATUS (Kolom 1) - SEKARANG DI KIRI BIAR LANGSUNG KELIHATAN
+    status_cell = ws_review.cell(row=curr_row, column=1)
+    status_cell.fill = fill_to_use
+    status_cell.font = Font(bold=True)
+    status_cell.alignment = Alignment(horizontal='center')
+
 auto_resize_columns(ws_review)
 # Simpan ke folder output
 review_file = os.path.join(output_dir, f"Hasil_Mapping_Review_{file_suffix}.xlsx")
@@ -306,49 +418,91 @@ if ws_new.max_row >= 4:
     ws_new.delete_rows(4, ws_new.max_row - 3)
 
 for i, u in enumerate(unmatched_items, 1):
-    harga_jual = u['harga_modal']
-    harga_modal_luna = 0 # Request Finance
+    harga_jual_luna = u['harga_satuan_sj']
     nama_baru = format_nama_luna(u['nama'], warehouse_prefix)
     kategori = OUTLET_CATEGORIES.get(warehouse_prefix, warehouse_prefix)
+    
+    # Gunakan list row yang definitif
     row = [
-        i, "", nama_baru, "Y", "N", 
-        harga_jual, harga_modal_luna, "Y", u['qty'], 1, 
-        kategori, str(u['satuan']).upper() if u['satuan'] else "PCS"
-    ] + ([None] * 8)
+        i,           # Col 1: No
+        "",          # Col 2: SKU
+        nama_baru,   # Col 3: Nama
+        "Y",         # Col 4: Tersedia
+        "N",         # Col 5: Bundle
+        harga_jual_luna, # Col 6: Harga Jual
+        0,           # Col 7: Harga Modal (DIPAKSA 0)
+        "Y",         # Col 8: Stok Aktif
+        u['qty'],    # Col 9: Jumlah Stok
+        1,           # Col 10: Min Stok
+        kategori,    # Col 11: Kategori
+        str(u['satuan']).upper() if u['satuan'] else "PCS" # Col 12: Unit
+    ] + ([None] * 5)
+    
     ws_new.append(row)
+    
+    # Double check: Pastikan cell-nya beneran terisi angka 0 (Numeric)
+    last_row = ws_new.max_row
+    ws_new.cell(row=last_row, column=7).value = 0
 auto_resize_columns(ws_new)
 # Simpan ke folder output
 new_prod_file = os.path.join(output_dir, f"Siap_Product_Baru_{file_suffix}.xlsx")
 wb_new.save(new_prod_file)
 
 # ---- FITUR LAPORAN OTOMATIS AKHIR ----
+# ---- PHASE 4: FINAL RECONCILIATION AUDIT ----
 total_qty_transfer = sum(m['qty'] for m in matched_items)
 total_qty_baru = sum(u['qty'] for u in unmatched_items)
 total_item_transfer = len(matched_items)
 total_item_baru = len(unmatched_items)
 
-total_rp_transfer = sum(safe_int(m['harga_modal_sj']) * safe_int(m['qty_sj']) for m in mapping_review if m['sku_luna_prediksi'])
-total_rp_baru = sum(safe_int(m['harga_modal_sj']) * safe_int(m['qty_sj']) for m in mapping_review if not m['sku_luna_prediksi'])
+total_rp_transfer = sum(m['qty_sj'] * m['harga_satuan_sj'] for m in mapping_review if m['sku_luna_prediksi'])
+total_rp_baru = sum(m['qty_sj'] * m['harga_satuan_sj'] for m in mapping_review if not m['sku_luna_prediksi'])
+
+# Hitung Akurasi
+actual_total_qty = total_qty_transfer + total_qty_baru
+actual_total_rp = total_rp_transfer + total_rp_baru
+actual_total_items = total_item_transfer + total_item_baru
+
+diff_qty = target_total_qty - actual_total_qty
+diff_rp = target_total_rp - actual_total_rp
+
+reconciliation_status = "✅ PERFECT (MATCH)" if diff_qty == 0 and diff_rp == 0 else "❌ ERROR (MISMATCH)"
+reconciliation_color = "" # Bisa ditambah ANSI color jika dijalankan di terminal modern
 
 rp_transfer_str = f"Rp {total_rp_transfer:,}".replace(',', '.')
 rp_baru_str = f"Rp {total_rp_baru:,}".replace(',', '.')
+diff_rp_str = f"Rp {diff_rp:,}".replace(',', '.')
 
 laporan_text = f"""=========================================
 LAPORAN SINKRONISASI INVENTORI LUNA POS
 =========================================
-File Sumber     : {os.path.basename(sj_filename)}
-Cabang Target   : {warehouse_prefix}
+File Sumber       : {os.path.basename(sj_filename)}
+Cabang Target     : {warehouse_prefix}
+Status Akurasi    : {reconciliation_status}
 
--- STATUS PEMBACAAN DATA --
-Peringatan      : Terdapat {baris_gagal} baris barang dilewati (ID Kosong)
+-- AUDIT REKONSILIASI (WAJIB NOL) --
+Selisih Quantity  : {diff_qty} Pcs
+Selisih Rp Value  : {diff_rp_str}
+Total Baris SJ    : {target_total_items}
+Total Baris Hasil : {actual_total_items}
+
+-- AUDIT DUPLIKASI & KONFLIK --
+ID Duplikat (Auto-Merge) : {total_merges} Item
+Detail ID Terduplikasi   : {", ".join(merged_details) if merged_details else "Tidak ada"}
+Tabrakan SKU Luna        : {len(sku_collisions)} Item
+Detail SKU Tabrakan      : {", ".join(set(sku_collisions)) if sku_collisions else "Tidak ada"}
+Konflik Nama di SJ       : {", ".join(name_conflicts) if name_conflicts else "Tidak ada (Aman)"}
+
+-- RINCIAN PROSES --
+Peringatan        : {baris_gagal} produk diproses tanpa ID/SKU asli (ID SJ Kosong)
 
 -- RINGKASAN MUTASI (STOCK IN LAMA) --
-Total SKU Terdikses                : {total_item_transfer} Varian
+Total SKU Terdictasi               : {total_item_transfer} Varian
 Total Quantitiy Masuk              : {total_qty_transfer} Pcs
 Total Nilai Barang (Harga Satuan)  : {rp_transfer_str}
 
 -- RINGKASAN REGISTRASI BARANG BARU --
-Total SKU Baru Terdikses           : {total_item_baru} Varian
+Total SKU Baru Terdictasi          : {total_item_baru} Varian
 Total Quantitiy Masuk              : {total_qty_baru} Pcs
 Total Nilai Barang (Harga Satuan)  : {rp_baru_str}
 
