@@ -20,3 +20,5 @@ env/
 venv/
 .venv/
 .env
+# Scratch directory
+scratch/

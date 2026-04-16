@@ -49,7 +49,7 @@ while True:
     if os.path.exists(sj_filename):
         break
     else:
-        print(f"⚠️ ERROR: File '{sj_filename}' tidak ditemukan!")
+        print(f"ERROR: File '{sj_filename}' tidak ditemukan!")
         print("File yang tersedia di folder ini:")
         xlsx_files = [f for f in os.listdir('.') if f.endswith('.xlsx')]
         for f in xlsx_files:
@@ -66,9 +66,9 @@ while True:
     if choice.isdigit() and 1 <= int(choice) <= len(options):
         warehouse_prefix = options[int(choice) - 1]
         break
-    print("⚠️ Input tidak valid! Pilih nomor yang tersedia.")
+    print("Input tidak valid! Pilih nomor yang tersedia.")
 
-print(f"✅ Menggunakan awalan: {warehouse_prefix} ({OUTLET_CATEGORIES[warehouse_prefix]})")
+print(f"[OK] Menggunakan awalan: {warehouse_prefix} ({OUTLET_CATEGORIES[warehouse_prefix]})")
 
 base_name = os.path.splitext(os.path.basename(sj_filename))[0]
 suffix_text = re.sub(r'(?i)SURAT JALAN', '', base_name)
@@ -99,9 +99,9 @@ output_dir = os.path.join(os.getcwd(), folder_name)
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
-    print(f"📂 Membuat folder baru: {folder_name}")
+    print(f"[NEW] Membuat folder baru: {folder_name}")
 else:
-    print(f"📂 Menggunakan folder yang ada: {folder_name}")
+    print(f"[DIR] Menggunakan folder yang ada: {folder_name}")
 
 try:
     if not os.path.exists('Produk.xlsx'):
@@ -143,14 +143,20 @@ except Exception as e:
 try:
     wb_sj = openpyxl.load_workbook(sj_filename, data_only=True)
     ws_sj = wb_sj.active
-    biggest_row = 0
+    biggest_data_count = 0
     for sheet in wb_sj.sheetnames:
         temp_ws = wb_sj[sheet]
-        if temp_ws.max_row > biggest_row:
-            biggest_row = temp_ws.max_row
+        # Hitung baris yang beneran ada isinya (cek kolom A-C di 20 baris pertama)
+        data_count = 0
+        for r in range(1, min(temp_ws.max_row + 1, 50)):
+            if any(temp_ws.cell(r, c).value for c in range(1, 4)):
+                data_count += 1
+        
+        if data_count > biggest_data_count:
+            biggest_data_count = data_count
             ws_sj = temp_ws
             
-    print(f"--> Target Data: '{ws_sj.title}' ({biggest_row} Baris)")
+    print(f"--> Target Data: '{ws_sj.title}' (Estimasi {biggest_data_count} Baris Data)")
 except Exception as e:
     print(f"❌ ERROR: Gagal membaca Surat Jalan. ({e})")
     sys.exit(1)
@@ -164,7 +170,7 @@ for r in range(1, 6):
     found_cols = 0
     for c in range(1, ws_sj.max_column + 1):
         val = str(ws_sj.cell(r, c).value or "").strip().upper()
-        if val:
+        if val and val not in temp_map: # FIX: Jangan overwrite jika sudah ada (Ambil yang paling kiri)
             temp_map[val] = c
             found_cols += 1
     
@@ -178,7 +184,7 @@ for r in range(1, 6):
         break
 
 if not header_map:
-    print("❌ ERROR: Gagal mendeteksi header di file Surat Jalan!")
+    print("ERROR: Gagal mendeteksi header di file Surat Jalan!")
     print("Pastikan ada kolom dengan nama: ID PRODUK, NAMA BARANG, QTY, dll.")
     sys.exit(1)
 
@@ -466,7 +472,7 @@ actual_total_items = total_item_transfer + total_item_baru
 diff_qty = target_total_qty - actual_total_qty
 diff_rp = target_total_rp - actual_total_rp
 
-reconciliation_status = "✅ PERFECT (MATCH)" if diff_qty == 0 and diff_rp == 0 else "❌ ERROR (MISMATCH)"
+reconciliation_status = "PERFECT (MATCH)" if diff_qty == 0 and diff_rp == 0 else "ERROR (MISMATCH)"
 reconciliation_color = "" # Bisa ditambah ANSI color jika dijalankan di terminal modern
 
 rp_transfer_str = f"Rp {total_rp_transfer:,}".replace(',', '.')
@@ -520,17 +526,22 @@ with open(laporan_path, "w", encoding="utf-8") as f:
 
 # Pindahkan file Surat Jalan (SJ) asli ke folder output untuk arsip
 try:
+    source_abs = os.path.abspath(sj_filename)
     target_sj_path = os.path.join(output_dir, os.path.basename(sj_filename))
-    if os.path.exists(target_sj_path):
-        os.remove(target_sj_path)
+    target_abs = os.path.abspath(target_sj_path)
     
-    shutil.move(sj_filename, target_sj_path)
-    print(f"📦 File sumber '{os.path.basename(sj_filename)}' dipindahkan ke folder {branch_name} untuk arsip.")
+    if source_abs != target_abs:
+        if os.path.exists(target_abs):
+            os.remove(target_abs)
+        shutil.move(sj_filename, target_sj_path)
+        print(f"[DONE] File sumber '{os.path.basename(sj_filename)}' dipindahkan ke folder {branch_name} untuk arsip.")
+    else:
+        print(f"[KEEP] File sumber '{os.path.basename(sj_filename)}' sudah berada di folder arsip.")
 except PermissionError:
-    print(f"⚠️ PERINGATAN: File '{os.path.basename(sj_filename)}' sedang dibuka oleh program lain (Excel?).")
+    print(f"PERINGATAN: File '{os.path.basename(sj_filename)}' sedang dibuka oleh program lain (Excel?).")
     print(f"   --> File GAGAL dipindahkan otomatis, tapi hasil generate DI DALAM FOLDER {branch_name} tetap aman.")
 except Exception as e:
-    print(f"⚠️ Peringatan: Gagal memindahkan file sumber: {e}")
+    print(f"Peringatan: Gagal memindahkan file sumber: {e}")
 
 # Copy file Produk.xlsx ke folder output sebagai referensi
 try:
@@ -538,11 +549,11 @@ try:
     produk_dst = os.path.join(output_dir, 'Produk.xlsx')
     if os.path.exists(produk_src):
         shutil.copy2(produk_src, produk_dst)
-        print(f"📋 File 'Produk.xlsx' di-copy ke folder {branch_name} sebagai referensi.")
+        print(f"[COPY] File 'Produk.xlsx' di-copy ke folder {branch_name} sebagai referensi.")
     else:
-        print(f"⚠️ Peringatan: File 'Produk.xlsx' tidak ditemukan untuk di-copy.")
+        print(f"Peringatan: File 'Produk.xlsx' tidak ditemukan untuk di-copy.")
 except Exception as e:
-    print(f"⚠️ Peringatan: Gagal meng-copy file Produk.xlsx: {e}")
+    print(f"Peringatan: Gagal meng-copy file Produk.xlsx: {e}")
 
 print(f"\n{laporan_text}\n")
-print(f"✅ Semua file berhasil disimpan di folder: {output_dir}")
+print(f"[SUCCESS] Semua file berhasil disimpan di folder: {output_dir}")
