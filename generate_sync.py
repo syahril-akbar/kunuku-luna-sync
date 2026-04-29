@@ -210,6 +210,7 @@ print(f"--> Column Mapping: ID({col_id}), Nama({col_nama}), Qty({col_qty}), Sat(
 # --- PHASE 1: SJ DATA COLLECTION & GROUND TRUTH AUDIT ---
 sj_data = {}
 baris_gagal = 0
+baris_dilewati_bk = 0
 
 # Variabel Auditing (Ground Truth)
 target_total_qty = 0
@@ -230,6 +231,11 @@ for r in range(header_row_index + 1, ws_sj.max_row + 1):
     
     # Filter baris sampah/kosong
     if not nama or nama.lower() in ['none', 'nan', '']:
+        continue
+        
+    # Kecualikan SKU yang berawalan BK
+    if id_raw and str(id_raw).strip().upper().startswith('BK'):
+        baris_dilewati_bk += 1
         continue
         
     # Audit: Tambahkan ke Target Ground Truth
@@ -281,6 +287,25 @@ def normalize_spaces(text):
 
 def format_nama_luna(name, prefix):
     name = normalize_spaces(name)
+    name_upper = name.upper()
+    
+    # Koreksi typo Surat Jalan -> Standar Luna POS
+    if 'GENDRANG' in name_upper:
+        name = re.sub(r'(?i)GENDRANG', 'GENDERANG', name)
+        name_upper = name.upper()
+    
+    # Deteksi Mainan dari keyword yang sudah kedaftar di Luna POS
+    mainan_keywords = ['LONCENG', 'GENDERANG', 'KENYOT', 'GELANG', 'TEPUK TANGAN', 'TEETER', 'DOT BABY']
+    is_mainan = any(k in name_upper for k in mainan_keywords)
+    
+    if is_mainan and 'SENDOK' not in name_upper:
+        if 'MAINAN' not in name_upper:
+            return f'{prefix} MAINAN {name}'
+        else:
+            if not name_upper.startswith(prefix):
+                return f'{prefix} {name}'
+            return name
+            
     match_bubur = re.search(r'^(N\.?\s*TIM\.?|B\.+|B)\s+(.*?)\s+(\d+\+)\s+(\d+)\s*ML$', name)
     if match_bubur:
         varian = match_bubur.group(2).strip()
@@ -501,6 +526,7 @@ Konflik Nama di SJ       : {", ".join(name_conflicts) if name_conflicts else "Ti
 
 -- RINCIAN PROSES --
 Peringatan        : {baris_gagal} produk diproses tanpa ID/SKU asli (ID SJ Kosong)
+Diabaikan         : {baris_dilewati_bk} produk di-skip karena SKU berawalan 'BK'
 
 -- RINGKASAN MUTASI (STOCK IN LAMA) --
 Total SKU Terdictasi               : {total_item_transfer} Varian
