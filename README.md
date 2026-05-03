@@ -26,6 +26,27 @@ pip install openpyxl
    ```
 5. Pilih cabang target (1-3) dan biarkan script bekerja.
 
+## 📝 Aturan Perubahan Nama (Formatting Rules)
+Proses sinkronisasi akan merapikan nama dari Surat Jalan agar seragam dengan database LUNA POS. Berikut adalah aturan perubahannya (dimana `{PREFIX}` adalah kode cabang, misal: `PRT`, `HRT`, `MLG`):
+
+1. **Normalisasi Dasar:**
+   Spasi berlebih otomatis dihapus dan format huruf diubah menjadi **KAPITAL** (Uppercase). Terdapat juga auto-koreksi typo standar (contoh: "GENDRANG" ➡️ "GENDERANG").
+
+2. **Kategori Mainan:**
+   - Dideteksi jika produk mengandung kata kunci: `LONCENG`, `GENDERANG`, `KENYOT`, `GELANG`, `TEPUK TANGAN`, `TEETER`, `DOT BABY` (dengan pengecualian jika ada kata `SENDOK`).
+   - **Pola Konversi:** `{PREFIX} MAINAN {NAMA ASLI}`
+   - *Contoh:* `Lonceng Bayi` ➡️ `HRT MAINAN LONCENG BAYI`
+
+3. **Kategori Bubur & Nasi Tim:**
+   - Dideteksi jika nama diawali variasi awalan bubur (`N TIM`, `N, TIM`, `N. TIM`, `B.`, atau `B`) dan memiliki informasi umur serta volume di akhir (contoh: `11+ 200 ML`).
+   - **Pola Konversi:** `{PREFIX} BUBUR {UMUR} {VOLUME} {VARIAN RASA}`
+   - *Contoh:* `N, Tim Cakalang Woku 11+ 200 ml` ➡️ `HRT BUBUR 11+ 200 ML CAKALANG WOKU`
+
+4. **Kategori Kaldu & Produk Default Lainnya:**
+   - Untuk produk yang tidak masuk kategori di atas (seperti Kaldu, Snack, dll), skrip hanya memastikan tidak ada duplikasi prefix dan otomatis menambahkan awalan cabang di depan nama produk.
+   - **Pola Konversi:** `{PREFIX} {NAMA ASLI}`
+   - *Contoh:* `Kaldu Sapi` ➡️ `HRT KALDU SAPI`
+
 ## 📂 Struktur Output
 Setelah dijalankan, script akan membuat folder baru (contoh: `PERINTIS_SENIN_2_APRIL_2026`) yang berisi:
 1. **SURAT JALAN ... .xlsx** (Arsip file sumber)

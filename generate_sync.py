@@ -306,7 +306,7 @@ def format_nama_luna(name, prefix):
                 return f'{prefix} {name}'
             return name
             
-    match_bubur = re.search(r'^(N\.?\s*TIM\.?|B\.+|B)\s+(.*?)\s+(\d+\+)\s+(\d+)\s*ML$', name)
+    match_bubur = re.search(r'^(N[.,]?\s*TIM[.,]?|B\.+|B)\s+(.*?)\s+(\d+\+)\s+(\d+)\s*ML$', name)
     if match_bubur:
         varian = match_bubur.group(2).strip()
         umur = match_bubur.group(3).strip()
