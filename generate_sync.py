@@ -370,6 +370,12 @@ def format_nama_luna(name, prefix, sub_kategori=''):
         volume = match_bubur.group(4).strip() + " ML"
         return f'{prefix} BUBUR {umur} {volume} {varian}'
     
+    # Proteksi: Jika nama produk sudah berawalan BUBUR, lewati pemrosesan sub kategori
+    if name_upper.startswith('BUBUR '):
+        if not name_upper.startswith(prefix):
+            return f'{prefix} {name}'
+        return name
+    
     # --- TERAPKAN ATURAN SUB KATEGORI dari SUB_KATEGORI_CONFIG ---
     if sub_kat_upper:
         cfg = SUB_KATEGORI_CONFIG.get(sub_kat_upper)
@@ -384,18 +390,19 @@ def format_nama_luna(name, prefix, sub_kategori=''):
                 name = f"{cfg['abbr']} {name}"
                 name_upper = name.upper()
             elif mode == 'keyword':
-                # Bersihkan prefix singkatan di depan jika nama asli di database lama
-                # sudah terlanjur mengandung kata kunci kategori (misal: 'SUP 12+ SOP MUTIARA' -> '12+ SOP MUTIARA')
                 if sub_kat_upper == 'SOUP':
-                    clean_name = re.sub(r'^SUP\s+', '', name, flags=re.IGNORECASE).strip()
-                    if re.search(cfg['keywords'], clean_name.upper()):
-                        name = clean_name
-                        name_upper = name.upper()
-                
-                # Tambahkan singkatan hanya jika kata kunci belum ada di nama
-                if not re.search(cfg['keywords'], name_upper):
-                    name = f"{cfg['abbr']} {name}"
+                    # Ganti SOP atau SOUP di awal nama dengan SUP
+                    name = re.sub(r'^(SOP|SOUP)\b', 'SUP', name, flags=re.IGNORECASE).strip()
                     name_upper = name.upper()
+                    # Selalu tambahkan SUP di awal jika belum ada
+                    if not name_upper.startswith('SUP '):
+                        name = f"SUP {name}"
+                        name_upper = name.upper()
+                else:
+                    # Tambahkan singkatan hanya jika kata kunci belum ada di nama
+                    if not re.search(cfg['keywords'], name_upper):
+                        name = f"{cfg['abbr']} {name}"
+                        name_upper = name.upper()
             elif mode == 'strip_prefix':
                 # Hapus awalan sub kategori dari nama (cegah redundansi), lalu tambah singkatan
                 name = re.sub(cfg['strip'], '', name, flags=re.IGNORECASE).strip()
