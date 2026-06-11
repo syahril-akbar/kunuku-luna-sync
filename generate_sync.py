@@ -17,6 +17,49 @@ OUTLET_CATEGORIES = {
     "MLG": "MALANG"
 }
 
+# ============================================================
+# KONFIGURASI SUB KATEGORI (Single Source of Truth)
+# Tambahkan sub kategori baru di sini untuk memperluas sistem.
+# ============================================================
+# MODE yang tersedia:
+#   'prefix'       -> Selalu tambahkan 'abbr' di depan nama produk.
+#                     Contoh: BUTTER RICE -> 'BR Chicken Rice Mentai'
+#   'keyword'      -> Tambahkan 'abbr' HANYA jika nama belum mengandung
+#                     salah satu 'keywords'. Mencegah duplikasi.
+#                     Contoh: SOUP -> 'SUP Empal Hati Sapi'
+#                              tapi 'Sop Merah Surabaya' dibiarkan (sudah ada 'SOP')
+#   'strip_prefix' -> Hapus awalan sub kategori ('strip') dari nama jika ada,
+#                     lalu tambahkan 'abbr'. Mencegah redundansi nama.
+#                     Contoh: FINGER FOOD -> 'FF Mie Original' (bukan 'FF Finger Food Mie Original')
+#   'pass'         -> Tidak ada perubahan. Nama produk sudah self-descriptive
+#                     (sudah mengandung identitas kategori atau tidak perlu prefix).
+# ============================================================
+SUB_KATEGORI_CONFIG = {
+    # Sub kategori yang perlu singkatan/prefix:
+    'SOUP':       {'mode': 'keyword',      'abbr': 'SUP', 'keywords': r'\b(SUP|SOUP|SOP|SOTO)\b'},
+    'BUTTER RICE':{'mode': 'prefix',       'abbr': 'BR'},
+    'FINGER FOOD':{'mode': 'strip_prefix', 'abbr': 'FF',  'strip': r'^FING+ER\s+FOOD\s*'},
+    'RICE BOX':   {'mode': 'strip_prefix', 'abbr': 'RB',  'strip': r'^RICE\s+BOX\s*'},
+    'SNACK BUAH': {'mode': 'prefix',       'abbr': 'SB'},  # singkatan SB untuk pengelompokan
+
+    # Sub kategori bubur (dihandle oleh regex bubur sebelum cek sub kategori):
+    'PUREE':      {'mode': 'pass'},
+    'SEMI SOLID': {'mode': 'pass'},
+    'SOLID':      {'mode': 'pass'},
+
+    # Sub kategori dengan nama produk yang biasanya self-descriptive,
+    # tapi pakai mode 'keyword' untuk jaga-jaga jika ada produk baru
+    # yang namanya tidak diawali nama kategori:
+    'KALDU': {'mode': 'keyword', 'abbr': 'KALDU', 'keywords': r'\bKALDU\b'},
+    'LAUK':  {'mode': 'keyword', 'abbr': 'LAUK',  'keywords': r'\bLAUK\b'},
+    'PASTA': {'mode': 'keyword', 'abbr': 'PASTA',  'keywords': r'\b(PASTA|MACARONI)\b'},
+    'ABON':  {'mode': 'keyword', 'abbr': 'ABON',   'keywords': r'\bABON\b'},
+    'GHEE & SAUS': {'mode': 'keyword', 'abbr': 'GHEE', 'keywords': r'\b(GHEE|SAUS)\b'},
+    'PELENGKAP BB BOOSTER':{'mode': 'prefix', 'abbr': 'BB'},  # singkatan BB untuk pengelompokan
+    'CUP, STIKER, & PLASTIK': {'mode': 'pass'},  # non-makanan, tidak perlu prefix
+    'MAINAN/AKSESORIS':       {'mode': 'pass'},  # dihandle terpisah oleh logika mainan_keywords di format_nama_luna()
+}
+
 def auto_resize_columns(ws):
     for col in ws.columns:
         max_length = 0
@@ -37,6 +80,15 @@ def safe_int(value):
         return int(value)
     digits = re.sub(r'[^\d]', '', str(value))
     return int(digits) if digits else 0
+
+def safe_save_excel(wb, filepath):
+    while True:
+        try:
+            wb.save(filepath)
+            break
+        except PermissionError:
+            print(f"\n❌ ERROR: File '{os.path.basename(filepath)}' sedang dibuka oleh program lain (seperti Excel).")
+            input("Silakan tutup file tersebut di Excel, lalu tekan ENTER untuk mencoba menyimpan kembali...")
 
 print("Memulai proses sinkronisasi dan pencocokan data...")
 
@@ -204,8 +256,9 @@ col_qty = get_col_index(["QTY", "QUANTITY", "TOTAL"], 5)
 col_sat = get_col_index(["SATUAN", "SAT"], 6)
 # Prioritaskan 'HARGA' (Harga Satuan)
 col_harga = get_col_index(["HARGA", "HARGA SATUAN", "UNIT PRICE"], 9)
+col_subkat = get_col_index(["SUB KATEGORI", "SUBKATEGORI"], None)
 
-print(f"--> Column Mapping: ID({col_id}), Nama({col_nama}), Qty({col_qty}), Sat({col_sat}), Harga({col_harga})")
+print(f"--> Column Mapping: ID({col_id}), Nama({col_nama}), Qty({col_qty}), Sat({col_sat}), Harga({col_harga}), SubKat({col_subkat})")
 
 # --- PHASE 1: SJ DATA COLLECTION & GROUND TRUTH AUDIT ---
 sj_data = {}
@@ -228,6 +281,7 @@ for r in range(header_row_index + 1, ws_sj.max_row + 1):
     qty = safe_int(ws_sj.cell(r, col_qty).value)
     sat = str(ws_sj.cell(r, col_sat).value or "").strip()
     harga = safe_int(ws_sj.cell(r, col_harga).value)
+    subkat = str(ws_sj.cell(r, col_subkat).value or "").strip() if col_subkat else ""
     
     # Filter baris sampah/kosong
     if not nama or nama.lower() in ['none', 'nan', '']:
@@ -266,7 +320,8 @@ for r in range(header_row_index + 1, ws_sj.max_row + 1):
                 'nama': nama,
                 'qty': qty,
                 'satuan': sat,
-                'harga': harga
+                'harga': harga,
+                'sub_kategori': subkat
             }
     else:
         # Masuk ke kategori error jika nama ada tapi ID hilang
@@ -277,7 +332,8 @@ for r in range(header_row_index + 1, ws_sj.max_row + 1):
             'nama': nama,
             'qty': qty,
             'satuan': sat,
-            'harga': harga
+            'harga': harga,
+            'sub_kategori': subkat
         }
 
 print(f"--> AUDIT INPUT: Terdeteksi {target_total_items} baris produk, Total Qty: {target_total_qty}, Total Rp: {target_total_rp:,}")
@@ -285,9 +341,10 @@ print(f"--> AUDIT INPUT: Terdeteksi {target_total_items} baris produk, Total Qty
 def normalize_spaces(text):
     return ' '.join(str(text).split()).upper()
 
-def format_nama_luna(name, prefix):
+def format_nama_luna(name, prefix, sub_kategori=''):
     name = normalize_spaces(name)
     name_upper = name.upper()
+    sub_kat_upper = str(sub_kategori).strip().upper()
     
     # Koreksi typo Surat Jalan -> Standar Luna POS
     if 'GENDRANG' in name_upper:
@@ -312,9 +369,45 @@ def format_nama_luna(name, prefix):
         umur = match_bubur.group(3).strip()
         volume = match_bubur.group(4).strip() + " ML"
         return f'{prefix} BUBUR {umur} {volume} {varian}'
+    
+    # --- TERAPKAN ATURAN SUB KATEGORI dari SUB_KATEGORI_CONFIG ---
+    if sub_kat_upper:
+        cfg = SUB_KATEGORI_CONFIG.get(sub_kat_upper)
+        if cfg is None:
+            # Sub kategori baru/tidak dikenal: cetak warning agar bisa ditambahkan ke config
+            print(f"  [PERINGATAN] Sub kategori tidak dikenal: '{sub_kategori}' (produk: {name}). "
+                  f"Tambahkan ke SUB_KATEGORI_CONFIG di baris konfigurasi.")
+        else:
+            mode = cfg['mode']
+            if mode == 'prefix':
+                # Selalu tambahkan singkatan di depan
+                name = f"{cfg['abbr']} {name}"
+                name_upper = name.upper()
+            elif mode == 'keyword':
+                # Bersihkan prefix singkatan di depan jika nama asli di database lama
+                # sudah terlanjur mengandung kata kunci kategori (misal: 'SUP 12+ SOP MUTIARA' -> '12+ SOP MUTIARA')
+                if sub_kat_upper == 'SOUP':
+                    clean_name = re.sub(r'^SUP\s+', '', name, flags=re.IGNORECASE).strip()
+                    if re.search(cfg['keywords'], clean_name.upper()):
+                        name = clean_name
+                        name_upper = name.upper()
+                
+                # Tambahkan singkatan hanya jika kata kunci belum ada di nama
+                if not re.search(cfg['keywords'], name_upper):
+                    name = f"{cfg['abbr']} {name}"
+                    name_upper = name.upper()
+            elif mode == 'strip_prefix':
+                # Hapus awalan sub kategori dari nama (cegah redundansi), lalu tambah singkatan
+                name = re.sub(cfg['strip'], '', name, flags=re.IGNORECASE).strip()
+                name_upper = name.upper()
+                name = f"{cfg['abbr']} {name}"
+                name_upper = name.upper()
+            # mode == 'pass': tidak ada perubahan
+    # --- END ATURAN SUB KATEGORI ---
+    
     if name.startswith('KALDU'):
         return f'{prefix} {name}'
-    if not name.startswith(prefix):
+    if not name_upper.startswith(prefix):
         return f'{prefix} {name}'
     return name
 
@@ -324,17 +417,40 @@ mapping_review = []
 sku_collisions = [] # Untuk deteksi kalau ID SJ beda tapi SKU Luna sama
 
 for id_sj, item_sj in sj_data.items():
-    expected_luna_name = format_nama_luna(item_sj['nama'], warehouse_prefix)
+    expected_luna_name = format_nama_luna(item_sj['nama'], warehouse_prefix, item_sj.get('sub_kategori', ''))
     
     best_match_sku = None
     best_match_nama_luna = None
     
     # 0. Prioritaskan Pencocokan ID (SKU) Mutlak terlebih dahulu
+    # VALIDASI NAMA: Jika nama produk di Luna sangat berbeda dari nama SJ,
+    # abaikan pencocokan ID (kemungkinan error data di Surat Jalan) dan fallback ke nama.
     if id_sj in luna_data:
-        best_match_sku = id_sj
-        best_match_nama_luna = luna_data[id_sj]['nama']
+        luna_nama_for_id = luna_data[id_sj]['nama']
+        # Bandingkan kata-kata kunci dari nama SJ vs nama Luna (case-insensitive)
+        # Ambil kata-kata bermakna (>= 3 huruf) dari masing-masing
+        sj_words = set(w for w in re.findall(r'[A-Za-z]+', item_sj['nama'].upper()) if len(w) >= 3)
+        luna_words = set(w for w in re.findall(r'[A-Za-z]+', luna_nama_for_id.upper()) if len(w) >= 3)
+        # Hapus kata prefix outlet (HRT, MLG, PRT) dari luna_words
+        luna_words.discard(warehouse_prefix)
+        if sj_words and luna_words:
+            common = sj_words & luna_words
+            similarity = len(common) / max(len(sj_words), len(luna_words))
+        else:
+            similarity = 0.0
+        
+        if similarity >= 0.3:
+            # Nama cukup mirip, pencocokan ID dianggap valid
+            best_match_sku = id_sj
+            best_match_nama_luna = luna_nama_for_id
+        else:
+            # Nama sangat berbeda -> kemungkinan ID salah di SJ, tandai sebagai KONFLIK
+            print(f"  [KONFLIK ID] ID '{id_sj}' di SJ -> '{item_sj['nama']}' "
+                  f"TIDAK COCOK dengan nama Luna: '{luna_nama_for_id}'. Fallback ke pencocokan nama.")
+            # Simpan info konflik untuk ditampilkan di review
+            item_sj['_id_konflik'] = f"ID {id_sj} = '{luna_nama_for_id}' di Luna"
     
-    # 1. Exact Match Strict Pattern System
+    # 1. Exact Match by Nama (Fallback jika ID tidak cocok atau tidak ada)
     if not best_match_sku:
         expected_norm = normalize_spaces(expected_luna_name)
         for sku, data in luna_data.items():
@@ -343,13 +459,17 @@ for id_sj, item_sj in sj_data.items():
                 best_match_nama_luna = data['nama']
                 break
     
+    # Tentukan status dan flag konflik ID
+    id_konflik_info = item_sj.get('_id_konflik', '')
     mapping_review.append({
         'id_sj': id_sj,
         'nama_sj': item_sj['nama'],
+        'sub_kategori': item_sj.get('sub_kategori', ''),
         'qty_sj': item_sj['qty'],
         'sku_luna_prediksi': best_match_sku,
-        'nama_luna_prediksi': best_match_nama_luna if best_match_nama_luna else f"[NEW] {format_nama_luna(item_sj['nama'], warehouse_prefix)}",
-        'harga_satuan_sj': item_sj['harga']
+        'nama_luna_prediksi': best_match_nama_luna if best_match_nama_luna else f"[NEW] {format_nama_luna(item_sj['nama'], warehouse_prefix, item_sj.get('sub_kategori', ''))}",
+        'harga_satuan_sj': item_sj['harga'],
+        'id_konflik': id_konflik_info
     })
     
     if best_match_sku:
@@ -365,13 +485,14 @@ for id_sj, item_sj in sj_data.items():
                 'qty': item_sj['qty']
             }
     else:
-        new_name_key = format_nama_luna(item_sj['nama'], warehouse_prefix)
+        new_name_key = format_nama_luna(item_sj['nama'], warehouse_prefix, item_sj.get('sub_kategori', ''))
         if new_name_key in unmatched_items_dict:
             unmatched_items_dict[new_name_key]['qty'] += item_sj['qty']
         else:
             unmatched_items_dict[new_name_key] = {
                 'id': id_sj,
                 'nama': item_sj['nama'],
+                'sub_kategori': item_sj.get('sub_kategori', ''),
                 'harga_satuan_sj': item_sj['harga'],
                 'satuan': item_sj['satuan'],
                 'qty': item_sj['qty']
@@ -386,8 +507,8 @@ wb_review = openpyxl.Workbook()
 ws_review = wb_review.active
 ws_review.title = "Review Mapping"
 
-# URUTAN OPTIMAL (Mata Kiri ke Kanan): Status -> Nama -> SKU -> Data
-headers_review = ["STATUS MATCH", "Nama SJ", "Prediksi Nama LUNA", "SKU LUNA (Jika Ada)", "Qty Transfer", "Harga Satuan dr SJ", "ID SJ"]
+# URUTAN OPTIMAL (Mata Kiri ke Kanan): Status -> Sub Kategori -> Nama -> SKU -> Data
+headers_review = ["STATUS MATCH", "Sub Kategori", "Nama SJ", "Prediksi Nama LUNA", "SKU LUNA (Jika Ada)", "Qty Transfer", "Harga Satuan dr SJ", "ID SJ"]
 ws_review.append(headers_review)
 
 # Style buat Header
@@ -397,38 +518,52 @@ for cell in ws_review[1]:
     cell.alignment = Alignment(horizontal='center')
 
 # Style buat Status
-fill_new = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid") # Kuning Muda
-fill_ok = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")  # Hijau Muda
+fill_new = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid") # Kuning Muda (Baru)
+fill_ok  = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid") # Hijau Muda (OK)
+fill_err = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid") # Merah Muda (Konflik)
 
 for m in mapping_review:
     is_matched = True if m['sku_luna_prediksi'] else False
-    status = "OK (Ketemu di Luna)" if is_matched else "BARU (Perlu Register)"
+    id_konflik = m.get('id_konflik', '')
+    
+    if id_konflik:
+        # Konflik ID: nama di SJ vs nama di Luna sangat berbeda
+        status = f"KONFLIK ID (Cek Manual): {id_konflik}"
+        fill_to_use = fill_err
+    elif is_matched:
+        status = "OK (Ketemu di Luna)"
+        fill_to_use = fill_ok
+    else:
+        status = "BARU (Perlu Register)"
+        fill_to_use = fill_new
     
     row_data = [
-        status,                          # Kolom 1: Status (Prioritas Mata)
-        m['nama_sj'],                    # Kolom 2: Nama Asli
-        m['nama_luna_prediksi'] or "N/A", # Kolom 3: Nama di Luna
-        m['sku_luna_prediksi'] or "N/A", # Kolom 4: Kode SKU
-        m['qty_sj'],                     # Kolom 5: Qty
-        m['harga_satuan_sj'],            # Kolom 6: Harga
-        m['id_sj']                       # Kolom 7: ID Referensi
+        status,                            # Kolom 1: Status (Prioritas Mata)
+        m.get('sub_kategori', ''),         # Kolom 2: Sub Kategori (untuk analisis/filter)
+        m['nama_sj'],                      # Kolom 3: Nama Asli dari SJ
+        m['nama_luna_prediksi'] or "N/A",  # Kolom 4: Nama di Luna POS
+        m['sku_luna_prediksi'] or "N/A",   # Kolom 5: Kode SKU
+        m['qty_sj'],                       # Kolom 6: Qty
+        m['harga_satuan_sj'],              # Kolom 7: Harga
+        m['id_sj']                         # Kolom 8: ID Referensi
     ]
     ws_review.append(row_data)
     
     # Beri warna pada baris yang baru saja ditambahkan
     curr_row = ws_review.max_row
-    fill_to_use = fill_ok if is_matched else fill_new
     
-    # Warnai kolom STATUS (Kolom 1) - SEKARANG DI KIRI BIAR LANGSUNG KELIHATAN
+    # Warnai kolom STATUS (Kolom 1)
     status_cell = ws_review.cell(row=curr_row, column=1)
     status_cell.fill = fill_to_use
     status_cell.font = Font(bold=True)
     status_cell.alignment = Alignment(horizontal='center')
+    # Warnai kolom Sub Kategori (Kolom 2) dengan warna yang sama
+    ws_review.cell(row=curr_row, column=2).fill = fill_to_use
 
 auto_resize_columns(ws_review)
 # Simpan ke folder output
 review_file = os.path.join(output_dir, f"Hasil_Mapping_Review_{file_suffix}.xlsx")
-wb_review.save(review_file)
+safe_save_excel(wb_review, review_file)
 
 wb_tf = openpyxl.load_workbook('warehouse-transfer-import-template.xlsx')
 ws_tf = wb_tf.active
@@ -441,7 +576,7 @@ for i, m in enumerate(matched_items, 1):
 auto_resize_columns(ws_tf)
 # Simpan ke folder output
 tf_file = os.path.join(output_dir, f"Siap_Warehouse_Transfer_{file_suffix}.xlsx")
-wb_tf.save(tf_file)
+safe_save_excel(wb_tf, tf_file)
 
 wb_new = openpyxl.load_workbook('product-import-template.xlsx')
 ws_new = wb_new.active
@@ -450,7 +585,7 @@ if ws_new.max_row >= 4:
 
 for i, u in enumerate(unmatched_items, 1):
     harga_jual_luna = u['harga_satuan_sj']
-    nama_baru = format_nama_luna(u['nama'], warehouse_prefix)
+    nama_baru = format_nama_luna(u['nama'], warehouse_prefix, u.get('sub_kategori', ''))
     kategori = OUTLET_CATEGORIES.get(warehouse_prefix, warehouse_prefix)
     
     # Gunakan list row yang definitif
@@ -477,7 +612,7 @@ for i, u in enumerate(unmatched_items, 1):
 auto_resize_columns(ws_new)
 # Simpan ke folder output
 new_prod_file = os.path.join(output_dir, f"Siap_Product_Baru_{file_suffix}.xlsx")
-wb_new.save(new_prod_file)
+safe_save_excel(wb_new, new_prod_file)
 
 # ---- FITUR LAPORAN OTOMATIS AKHIR ----
 # ---- PHASE 4: FINAL RECONCILIATION AUDIT ----
