@@ -49,7 +49,7 @@ Proses sinkronisasi akan merapikan nama dari Surat Jalan agar seragam dengan dat
    
    | Sub Kategori | Mode Pemrosesan | Singkatan | Contoh Hasil Konversi |
    | :--- | :--- | :--- | :--- |
-   | **SOUP** | `keyword` | `SUP` | `Empal Hati Sapi` ➡️ `{PREFIX} SUP EMPAL HATI SAPI`<br>`Sop Merah` ➡️ `{PREFIX} SOP MERAH` (Aman, tidak dobel) |
+   | **SOUP** | `keyword` | `SUP` | `Empal Hati Sapi` ➡️ `{PREFIX} SUP EMPAL HATI SAPI`<br>`Sop Ayam Bakso` ➡️ `{PREFIX} SUP AYAM BAKSO` (Mengganti SOP/SOUP di depan menjadi SUP)<br>`Beef Mandu Soup` ➡️ `{PREFIX} SUP BEEF MANDU SOUP` (Selalu diawali SUP) |
    | **BUTTER RICE** | `prefix` | `BR` | `Chicken Rice Mentai` ➡️ `{PREFIX} BR CHICKEN RICE MENTAI` |
    | **FINGER FOOD** | `strip_prefix` | `FF` | `Finger Food Nugget Dory` ➡️ `{PREFIX} FF NUGGET DORY` |
    | **RICE BOX** | `strip_prefix` | `RB` | `Rice Box Chicken Katsu` ➡️ `{PREFIX} RB CHICKEN KATSU` |
@@ -64,7 +64,7 @@ Proses sinkronisasi akan merapikan nama dari Surat Jalan agar seragam dengan dat
    | **CUP, STIKER, & PLASTIK** | `pass` | - | Non-makanan, tidak diberi singkatan sub kategori. |
    | **MAINAN/AKSESORIS** | `pass` | - | Dihandle terpisah oleh deteksi keywords mainan (contoh: Lonceng ➡️ `{PREFIX} MAINAN LONCENG`). |
 
-   > **Note on Keyword Mode**: Untuk sub kategori dengan mode `keyword` (seperti SOUP, KALDU, LAUK, PASTA, ABON, GHEE), singkatan **hanya akan ditambahkan jika nama asli produk belum mengandung kata kunci tersebut**. Hal ini mencegah terjadinya nama ganda seperti `HRT LAUK LAUK GADON SAPI` atau `HRT SUP SOP MERAH`.
+    > **Note on Keyword Mode**: Untuk sub kategori dengan mode `keyword` (seperti KALDU, LAUK, PASTA, ABON, GHEE), singkatan **hanya akan ditambahkan jika nama asli produk belum mengandung kata kunci tersebut**. Khusus untuk **SOUP**, kata kunci `SOP`/`SOUP` di awal otomatis diubah menjadi `SUP` dan awalan `SUP` akan selalu disematkan di depan nama produk demi konsistensi pengelompokan.
 
 ## 📂 Struktur Output
 Setelah dijalankan, script akan membuat folder baru (contoh: `PERINTIS_SENIN_2_APRIL_2026`) yang berisi:
