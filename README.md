@@ -53,7 +53,7 @@ Proses sinkronisasi akan merapikan nama dari Surat Jalan agar seragam dengan dat
    | **BUTTER RICE** | `prefix` | `BR` | `Chicken Rice Mentai` ➡️ `{PREFIX} BR CHICKEN RICE MENTAI` |
    | **FINGER FOOD** | `strip_prefix` | `FF` | `Finger Food Nugget Dory` ➡️ `{PREFIX} FF NUGGET DORY` |
    | **RICE BOX** | `strip_prefix` | `RB` | `Rice Box Chicken Katsu` ➡️ `{PREFIX} RB CHICKEN KATSU` |
-   | **SNACK BUAH** | `prefix` | `SB` | `Pisang Regal Vla` ➡️ `{PREFIX} SB PISANG REGAL VLA` |
+   | **SNACK BUAH** | `strip_prefix` | `SB` | `Snack Buah Oats Apple` ➡️ `{PREFIX} SB OATS APPLE` (Mencegah redundansi prefix) |
    | **PELENGKAP BB BOOSTER** | `prefix` | `BB` | `Kremes Hati Ayam` ➡️ `{PREFIX} BB KREMES HATI AYAM` |
    | **KALDU** | `keyword` | `KALDU` | `Salmon Immune Booster` ➡️ `{PREFIX} KALDU SALMON IMMUNE BOOSTER` |
    | **LAUK** | `keyword` | `LAUK` | `Gadon Sapi` ➡️ `{PREFIX} LAUK GADON SAPI` |
