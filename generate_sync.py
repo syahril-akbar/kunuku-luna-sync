@@ -40,7 +40,7 @@ SUB_KATEGORI_CONFIG = {
     'BUTTER RICE':{'mode': 'prefix',       'abbr': 'BR'},
     'FINGER FOOD':{'mode': 'strip_prefix', 'abbr': 'FF',  'strip': r'^FING+ER\s+FOOD\s*'},
     'RICE BOX':   {'mode': 'strip_prefix', 'abbr': 'RB',  'strip': r'^RICE\s+BOX\s*'},
-    'SNACK BUAH': {'mode': 'prefix',       'abbr': 'SB'},  # singkatan SB untuk pengelompokan
+    'SNACK BUAH': {'mode': 'strip_prefix', 'abbr': 'SB',  'strip': r'^SNACK\s+BUAH\s*'},  # singkatan SB untuk pengelompokan
 
     # Sub kategori bubur (dihandle oleh regex bubur sebelum cek sub kategori):
     'PUREE':      {'mode': 'pass'},
