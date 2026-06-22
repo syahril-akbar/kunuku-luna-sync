@@ -50,7 +50,7 @@ Proses sinkronisasi akan merapikan nama dari Surat Jalan agar seragam dengan dat
    | Sub Kategori | Mode Pemrosesan | Singkatan | Contoh Hasil Konversi |
    | :--- | :--- | :--- | :--- |
    | **SOUP** | `keyword` | `SUP` | `Empal Hati Sapi` ➡️ `{PREFIX} SUP EMPAL HATI SAPI`<br>`Sop Ayam Bakso` ➡️ `{PREFIX} SUP AYAM BAKSO` (Mengganti SOP/SOUP di depan menjadi SUP)<br>`Beef Mandu Soup` ➡️ `{PREFIX} SUP BEEF MANDU SOUP` (Selalu diawali SUP) |
-   | **BUTTER RICE** | `strip_prefix` | `BR` | `Butter Rice Dory Cauli Flower` ➡️ `{PREFIX} BR DORY CAULI FLOWER` (Mencegah redundansi prefix) |
+   | **BUTTER RICE** | `strip_prefix` | `BR` | `Butter Rice Dory Cauli Flower` ➡️ `{PREFIX} BR DORY CAULI FLOWER`<br>`Butter Rice Beef` ➡️ `{PREFIX} BR BUTTER RICE BEEF` (Jika tersisa hanya 1 kata setelah strip, kata 'BUTTER RICE' tetap dipertahankan) |
    | **FINGER FOOD** | `strip_prefix` | `FF` | `Finger Food Nugget Dory` ➡️ `{PREFIX} FF NUGGET DORY` |
    | **RICE BOX** | `strip_prefix` | `RB` | `Rice Box Chicken Katsu` ➡️ `{PREFIX} RB CHICKEN KATSU` |
    | **SNACK BUAH** | `strip_prefix` | `SB` | `Snack Buah Oats Apple` ➡️ `{PREFIX} SB OATS APPLE` (Mencegah redundansi prefix) |

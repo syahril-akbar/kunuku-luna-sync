@@ -405,7 +405,12 @@ def format_nama_luna(name, prefix, sub_kategori=''):
                         name_upper = name.upper()
             elif mode == 'strip_prefix':
                 # Hapus awalan sub kategori dari nama (cegah redundansi), lalu tambah singkatan
-                name = re.sub(cfg['strip'], '', name, flags=re.IGNORECASE).strip()
+                candidate_name = re.sub(cfg['strip'], '', name, flags=re.IGNORECASE).strip()
+                if sub_kat_upper == 'BUTTER RICE':
+                    words_left = candidate_name.split()
+                    if len(words_left) <= 1:
+                        candidate_name = name
+                name = candidate_name
                 name_upper = name.upper()
                 name = f"{cfg['abbr']} {name}"
                 name_upper = name.upper()
