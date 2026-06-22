@@ -37,7 +37,7 @@ OUTLET_CATEGORIES = {
 SUB_KATEGORI_CONFIG = {
     # Sub kategori yang perlu singkatan/prefix:
     'SOUP':       {'mode': 'keyword',      'abbr': 'SUP', 'keywords': r'\b(SUP|SOUP|SOP|SOTO)\b'},
-    'BUTTER RICE':{'mode': 'strip_prefix', 'abbr': 'BR',  'strip': r'^BUTTER\s+RICE\s*'},
+    'BUTTER RICE':{'mode': 'strip_prefix', 'abbr': 'BR',  'strip': r'\bBUTTER\s+RICE\b\s*'},
     'FINGER FOOD':{'mode': 'strip_prefix', 'abbr': 'FF',  'strip': r'^FING+ER\s+FOOD\s*'},
     'RICE BOX':   {'mode': 'strip_prefix', 'abbr': 'RB',  'strip': r'^RICE\s+BOX\s*'},
     'SNACK BUAH': {'mode': 'strip_prefix', 'abbr': 'SB',  'strip': r'^SNACK\s+BUAH\s*'},  # singkatan SB untuk pengelompokan
