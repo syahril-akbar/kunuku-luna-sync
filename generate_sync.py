@@ -251,11 +251,11 @@ def get_col_index(aliases, default):
 
 col_id = get_col_index(["ID PRODUK", "SKU", "ID"], 1)
 col_nama = get_col_index(["NAMA PRODUK", "NAMA BARANG", "NAMA"], 2)
-# Prioritaskan 'QTY' jika ada, kalau cuma ada 'TOTAL' ambil yang pertama (biasanya Qty)
-col_qty = get_col_index(["QTY", "QUANTITY", "TOTAL"], 5)
+# Prioritaskan 'TOTAL QTY'/'TOTAL PO' jika ada, kalau cuma ada 'TOTAL' (seperti di Perintis) baru ambil 'TOTAL'
+col_qty = get_col_index(["TOTAL QTY", "TOTAL PO", "QTY", "QUANTITY", "TOTAL"], 5)
 col_sat = get_col_index(["SATUAN", "SAT"], 6)
-# Prioritaskan 'HARGA' (Harga Satuan)
-col_harga = get_col_index(["HARGA", "HARGA SATUAN", "UNIT PRICE"], 9)
+# Prioritaskan 'HARGA SATUAN'/'UNIT PRICE' untuk menghindari kerancuan dengan total harga (Total)
+col_harga = get_col_index(["HARGA SATUAN", "HARGA", "UNIT PRICE"], 9)
 col_subkat = get_col_index(["SUB KATEGORI", "SUBKATEGORI"], None)
 
 print(f"--> Column Mapping: ID({col_id}), Nama({col_nama}), Qty({col_qty}), Sat({col_sat}), Harga({col_harga}), SubKat({col_subkat})")
@@ -574,7 +574,7 @@ for m in mapping_review:
 
 auto_resize_columns(ws_review)
 # Simpan ke folder output
-review_file = os.path.join(output_dir, f"Hasil_Mapping_Review_{file_suffix}.xlsx")
+review_file = os.path.join(output_dir, f"Hasil_Mapping_Review_{folder_name}.xlsx")
 safe_save_excel(wb_review, review_file)
 
 wb_tf = openpyxl.load_workbook('warehouse-transfer-import-template.xlsx')
@@ -587,7 +587,7 @@ for i, m in enumerate(matched_items, 1):
     ws_tf.append(row)
 auto_resize_columns(ws_tf)
 # Simpan ke folder output
-tf_file = os.path.join(output_dir, f"Siap_Warehouse_Transfer_{file_suffix}.xlsx")
+tf_file = os.path.join(output_dir, f"Siap_Warehouse_Transfer_{folder_name}.xlsx")
 safe_save_excel(wb_tf, tf_file)
 
 wb_new = openpyxl.load_workbook('product-import-template.xlsx')
@@ -623,7 +623,7 @@ for i, u in enumerate(unmatched_items, 1):
     ws_new.cell(row=last_row, column=7).value = 0
 auto_resize_columns(ws_new)
 # Simpan ke folder output
-new_prod_file = os.path.join(output_dir, f"Siap_Product_Baru_{file_suffix}.xlsx")
+new_prod_file = os.path.join(output_dir, f"Siap_Product_Baru_{folder_name}.xlsx")
 safe_save_excel(wb_new, new_prod_file)
 
 # ---- FITUR LAPORAN OTOMATIS AKHIR ----
@@ -686,13 +686,13 @@ Total Quantitiy Masuk              : {total_qty_baru} Pcs
 Total Nilai Barang (Harga Satuan)  : {rp_baru_str}
 
 -- DAFTAR FILE HASIL --
-1. Hasil_Mapping_Review_{file_suffix}.xlsx (WAJIB CEK)
-2. Siap_Warehouse_Transfer_{file_suffix}.xlsx
-3. Siap_Product_Baru_{file_suffix}.xlsx
+1. Hasil_Mapping_Review_{folder_name}.xlsx (WAJIB CEK)
+2. Siap_Warehouse_Transfer_{folder_name}.xlsx
+3. Siap_Product_Baru_{folder_name}.xlsx
 
 ========================================="""
 
-laporan_filename = f"Laporan_Mutasi_{file_suffix}.txt"
+laporan_filename = f"Laporan_Mutasi_{folder_name}.txt"
 laporan_path = os.path.join(output_dir, laporan_filename)
 with open(laporan_path, "w", encoding="utf-8") as f:
     f.write(laporan_text)
@@ -707,12 +707,12 @@ try:
         if os.path.exists(target_abs):
             os.remove(target_abs)
         shutil.move(sj_filename, target_sj_path)
-        print(f"[DONE] File sumber '{os.path.basename(sj_filename)}' dipindahkan ke folder {branch_name} untuk arsip.")
+        print(f"[DONE] File sumber '{os.path.basename(sj_filename)}' dipindahkan ke folder {folder_name} untuk arsip.")
     else:
         print(f"[KEEP] File sumber '{os.path.basename(sj_filename)}' sudah berada di folder arsip.")
 except PermissionError:
     print(f"PERINGATAN: File '{os.path.basename(sj_filename)}' sedang dibuka oleh program lain (Excel?).")
-    print(f"   --> File GAGAL dipindahkan otomatis, tapi hasil generate DI DALAM FOLDER {branch_name} tetap aman.")
+    print(f"   --> File GAGAL dipindahkan otomatis, tapi hasil generate DI DALAM FOLDER {folder_name} tetap aman.")
 except Exception as e:
     print(f"Peringatan: Gagal memindahkan file sumber: {e}")
 
@@ -722,7 +722,7 @@ try:
     produk_dst = os.path.join(output_dir, 'Produk.xlsx')
     if os.path.exists(produk_src):
         shutil.copy2(produk_src, produk_dst)
-        print(f"[COPY] File 'Produk.xlsx' di-copy ke folder {branch_name} sebagai referensi.")
+        print(f"[COPY] File 'Produk.xlsx' di-copy ke folder {folder_name} sebagai referensi.")
     else:
         print(f"Peringatan: File 'Produk.xlsx' tidak ditemukan untuk di-copy.")
 except Exception as e:
