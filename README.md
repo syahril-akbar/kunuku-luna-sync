@@ -3,13 +3,23 @@
 Sistem otomatisasi sinkronisasi stok antara Surat Jalan Gudang dan LUNA POS. Script ini membantu mapping barang, registrasi produk baru, dan persiapan file transfer gudang secara bulk/bulk processing.
 
 ## 🚀 Fitur Utama
-- **Auto Mapping**: Mencocokkan SKU/Nama dari Surat Jalan ke database Produk LUNA.
-- **Auto Category**: Menambahkan kategori otomatis (PERINTIS, HERTASNING, MALANG) untuk produk baru.
-- **Smart Formatting**: Merapikan nama produk sesuai standar LUNA (misal: "PRT BUBUR 6+ 300 ML ...").
-- **Folder Archive**: Otomatis menyimpan file hasil generate & file sumber ke folder cabang berbasis tanggal.
-- **Summary Report**: Laporan ringkasan total Qty & Nilai Rupiah barang masuk.
+- **Auto Mapping**: Mencocokkan SKU/Nama dari Surat Jalan ke database Produk LUNA secara otomatis.
+- **Auto Category**: Menambahkan kategori cabang otomatis (PERINTIS, HERTASNING, MALANG) untuk produk baru.
+- **Smart Formatting (Single Source of Truth)**: Merapikan nama produk dari Surat Jalan agar seragam dengan standar LUNA POS berdasarkan sub kategori (contoh: menyematkan singkatan `SUP`, `BR`, `FF`, `RB`, `SB`, `BB`, `KALDU`, `LAUK`, `PASTA`, `ABON`, `GHEE`, penyelarasan penulisan Bubur/Nasi Tim, dan kategori Mainan).
+- **Smart Sheet Detection**: Otomatis mendeteksi dan memilih sheet terbaik yang berisi data produk utama di dalam file Surat Jalan.
+- **Smart Header & Column Mapping**: Otomatis mendeteksi lokasi baris header serta memetakan kolom (ID/SKU, Nama, Qty, Satuan, Harga, Sub Kategori) secara adaptif menggunakan sistem alias cerdas yang meminimalkan kesalahan deteksi kolom (seperti membedakan "Total Qty" dan total nilai rupiah "Total").
+- **Ground Truth Reconciliation (Wajib Nol)**: Melakukan audit rekonsiliasi total kuantitas (Qty) dan nilai rupiah (Rp) barang masuk secara real-time untuk memastikan akurasi data 100% (selisih input vs output harus nol).
+- **Audit Duplikasi & Konflik**: 
+  - *Auto-Merge ID*: Menggabungkan otomatis produk dengan ID/SKU yang sama dari Surat Jalan.
+  - *Tabrakan SKU Luna*: Mendeteksi jika terdapat ID SJ berbeda namun terpetakan ke satu SKU LUNA yang sama.
+  - *Konflik Nama*: Mendeteksi jika ada nama produk sama tetapi memiliki ID berbeda.
 - **🛡️ Deteksi Konflik ID vs Nama**: Memvalidasi kesesuaian ID di Surat Jalan dengan master data Luna. Jika terjadi perbedaan nama yang signifikan, otomatis ditandai sebagai `KONFLIK ID` (berwarna merah di review Excel) untuk mencegah salah stok.
-- **🔒 Anti-Crash File Terkunci**: Jika file Excel sedang dibuka di program lain saat dijalankan, script tidak akan crash, melainkan menampilkan pesan instruksi dan opsi untuk menekan ENTER untuk retry setelah file ditutup.
+- **Auto-Generate Import Templates**: Menghasilkan file Excel siap pakai sesuai template LUNA POS:
+  - `Hasil_Mapping_Review_*.xlsx` (dilengkapi warna status visual: Hijau = OK, Kuning = Baru, Merah = Konflik ID).
+  - `Siap_Warehouse_Transfer_*.xlsx` (untuk impor mutasi/transfer stok cabang).
+  - `Siap_Product_Baru_*.xlsx` (untuk registrasi produk baru ke LUNA dengan Harga Modal diset `0`).
+- **Consistent Output Naming & Archive**: Otomatis membuat folder arsip per cabang berdasarkan tanggal dokumen, memindahkan file Surat Jalan asli, menyalin `Produk.xlsx` sebagai referensi, serta menyelaraskan nama semua file output agar sesuai dengan nama foldernya.
+- **🔒 Anti-Crash File Terkunci**: Jika file Excel sedang dibuka di program lain (misalnya Excel) saat program dijalankan, script tidak akan crash melainkan menampilkan peringatan agar file ditutup lalu menekan ENTER untuk mencoba kembali.
 
 ## 📦 Prasyarat (Dependencies)
 ```bash
