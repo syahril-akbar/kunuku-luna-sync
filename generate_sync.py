@@ -520,7 +520,7 @@ ws_review = wb_review.active
 ws_review.title = "Review Mapping"
 
 # URUTAN OPTIMAL (Mata Kiri ke Kanan): Status -> Sub Kategori -> Nama -> SKU -> Data
-headers_review = ["STATUS MATCH", "Sub Kategori", "Nama SJ", "Prediksi Nama LUNA", "SKU LUNA (Jika Ada)", "Qty Transfer", "Harga Satuan dr SJ", "ID SJ"]
+headers_review = ["STATUS MATCH", "Sub Kategori", "Nama dari Surat Jalan", "Nama POS LUNA", "SKU LUNA", "Qty Transfer", "Harga Satuan dr SJ", "SKU Surat Jalan"]
 ws_review.append(headers_review)
 
 # Style buat Header
@@ -543,10 +543,10 @@ for m in mapping_review:
         status = f"KONFLIK ID (Cek Manual): {id_konflik}"
         fill_to_use = fill_err
     elif is_matched:
-        status = "OK (Ketemu di Luna)"
+        status = "TERSEDIA DI POS"
         fill_to_use = fill_ok
     else:
-        status = "BARU (Perlu Register)"
+        status = "PRODUK BARU"
         fill_to_use = fill_new
     
     row_data = [
@@ -574,7 +574,7 @@ for m in mapping_review:
 
 auto_resize_columns(ws_review)
 # Simpan ke folder output
-review_file = os.path.join(output_dir, f"Hasil_Mapping_Review_{folder_name}.xlsx")
+review_file = os.path.join(output_dir, f"Laporan_Mapping_Review_{folder_name}.xlsx")
 safe_save_excel(wb_review, review_file)
 
 wb_tf = openpyxl.load_workbook('warehouse-transfer-import-template.xlsx')
@@ -686,7 +686,7 @@ Total Quantitiy Masuk              : {total_qty_baru} Pcs
 Total Nilai Barang (Harga Satuan)  : {rp_baru_str}
 
 -- DAFTAR FILE HASIL --
-1. Hasil_Mapping_Review_{folder_name}.xlsx (WAJIB CEK)
+1. Laporan_Mapping_Review_{folder_name}.xlsx (WAJIB CEK)
 2. Siap_Warehouse_Transfer_{folder_name}.xlsx
 3. Siap_Product_Baru_{folder_name}.xlsx
 
