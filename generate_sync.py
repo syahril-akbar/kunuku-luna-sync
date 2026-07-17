@@ -73,6 +73,105 @@ def auto_resize_columns(ws):
         adjusted_width = (max_length + 2)
         ws.column_dimensions[column].width = min(adjusted_width, 60)
 
+def apply_color_grouping_to_sheet(ws):
+    header_row_idx = 3
+    data_rows = []
+    
+    # Baca semua baris data
+    for r in range(header_row_idx + 1, ws.max_row + 1):
+        row_values = [ws.cell(r, c).value for c in range(1, ws.max_column + 1)]
+        if not row_values[2]:
+            continue
+        data_rows.append(row_values)
+        
+    if not data_rows:
+        return
+        
+    # Tentukan grup kategori untuk setiap baris data
+    for row in data_rows:
+        prod_name = row[2]
+        # Get prefix
+        name = str(prod_name).strip()
+        match_prefix = re.match(r'^([A-Z]{3})\s+(.*)$', name, re.IGNORECASE)
+        if match_prefix:
+            name = match_prefix.group(2).strip()
+        
+        name_upper = name.upper()
+        
+        # BUBUR dengan ukuran ML
+        if "BUBUR" in name_upper:
+            ml_match = re.search(r'\b(\d+)\s*ML\b', name_upper)
+            if ml_match:
+                group = f"BUBUR {ml_match.group(1)} ML"
+            else:
+                group = "BUBUR"
+        else:
+            # Cek mainan
+            mainan_keywords = ['LONCENG', 'GENDERANG', 'KENYOT', 'GELANG', 'TEPUK TANGAN', 'TEETER', 'DOT BABY', 'MAINAN']
+            if any(k in name_upper for k in mainan_keywords):
+                group = "MAINAN/AKSESORIS"
+            else:
+                # Cek sub kategori config
+                found = False
+                for key, cfg in SUB_KATEGORI_CONFIG.items():
+                    abbr = cfg.get('abbr')
+                    if abbr and (name_upper.startswith(abbr.upper() + " ") or name_upper.startswith(abbr.upper() + ".")):
+                        group = key
+                        found = True
+                        break
+                    if key in name_upper:
+                        group = key
+                        found = True
+                        break
+                if not found:
+                    words = name.split()
+                    group = words[0].upper() if words else "LAIN-LAIN"
+        row.append(group)
+        
+    # Sort data_rows berdasarkan group, lalu nama produk
+    data_rows.sort(key=lambda x: (x[-1], x[2]))
+    
+    # Hapus baris data lama dari sheet
+    if ws.max_row > header_row_idx:
+        ws.delete_rows(header_row_idx + 1, ws.max_row - header_row_idx)
+        
+    pastel_colors = [
+        "ADD8E6", # Light Blue
+        "90EE90", # Light Green
+        "FFF3CD", # Light Yellow/Gold
+        "FFB6C1", # Light Pink
+        "E6E6FA", # Lavender/Purple
+        "FFA07A", # Light Salmon/Orange
+        "87CEFA", # Light Sky Blue
+        "F0E68C", # Khaki
+        "20B2AA", # Light Sea Green/Teal
+        "D3D3D3"  # Light Grey
+    ]
+    
+    group_colors = {}
+    color_idx = 0
+    
+    # Tulis kembali data yang sudah di-sort dan diwarnai
+    for i, row in enumerate(data_rows, 1):
+        group = row[-1]
+        row_data = row[:-1]
+        row_data[0] = i # Re-numbering No
+        
+        ws.append(row_data)
+        curr_row = ws.max_row
+        
+        if group not in group_colors:
+            group_colors[group] = pastel_colors[color_idx % len(pastel_colors)]
+            color_idx += 1
+            
+        color_hex = group_colors[group]
+        fill = PatternFill(start_color=color_hex, end_color=color_hex, fill_type="solid")
+        
+        for c in range(1, len(row_data) + 1):
+            cell = ws.cell(curr_row, c)
+            cell.fill = fill
+
+
 def safe_int(value):
     if value is None:
         return 0
@@ -621,6 +720,7 @@ for i, u in enumerate(unmatched_items, 1):
     # Double check: Pastikan cell-nya beneran terisi angka 0 (Numeric)
     last_row = ws_new.max_row
     ws_new.cell(row=last_row, column=7).value = 0
+apply_color_grouping_to_sheet(ws_new)
 auto_resize_columns(ws_new)
 # Simpan ke folder output
 new_prod_file = os.path.join(output_dir, f"Siap_Product_Baru_{folder_name}.xlsx")
